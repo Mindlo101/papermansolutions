@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Customers</h2>
+
+{% if request.query_params.get('success') == 'customer_deleted' %}
+<div class="alert alert-success">✅ Customer deleted successfully.</div>
+{% endif %}
+
+{% if request.query_params.get('error') == 'manager_cannot_delete_pending_only' %}
+<div class="alert alert-warning">
+    ⚠️ As a Manager, you can only delete customers with APPROVED, DISBURSED, COMPLETED, or DEFAULTED loans.<br>
+    This customer only has PENDING or REJECTED loans.
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') == 'officer_cannot_delete_approved' %}
+<div class="alert alert-warning">
+    ⚠️ As a Loan Officer, you can only delete customers with PENDING or REJECTED loans (no approved/disbursed/completed/defaulted loans).<br>
+    This customer has APPROVED, DISBURSED, COMPLETED, or DEFAULTED loans.
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') == 'permission_denied' %}
+<div class="alert alert-danger">❌ You don't have permission to delete this customer.</div>
+{% endif %}
+
+<a href="/customers/add" class="btn btn-dark mb-3">➕ Add Customer</a>
+
+<div class="card section-card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>ID Number</th>
+                        <th>Phone</th>
+                        <th>Loans</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in customer_data %}
+                    <tr>
+                        <td>{{ data.customer.id }}</td>
+                        <td>{{ data.customer.first_name }} {{ data.customer.last_name }}</td>
+                        <td>{{ data.customer.id_number }}</td>
+                        <td>{{ data.customer.phone }}</td>
+                        <td>
+                            <span class="badge" style="background:#1a365d; color:white;">
+                                {{ data.loan_count }}
+                            </span>
+                            {% if data.has_approved %}
+                            <span class="badge-approved" style="font-size:9px;">APPROVED</span>
+                            {% endif %}
+                            {% if data.has_pending %}
+                            <span class="badge-pending" style="font-size:9px;">PENDING</span>
+                            {% endif %}
+                            {% if data.has_disbursed %}
+                            <span class="badge-disbursed" style="font-size:9px;">DISBURSED</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/customers/{{ data.customer.id }}" class="btn btn-sm btn-info">View</a>
+                            
+                            <!-- Delete Button with Role-Based Logic -->
+                            {% if user.role == 'admin' %}
+                                <!-- Admin: Can delete anyone -->
+                                <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
+                                      onsubmit="return confirm('Are you sure you want to delete this customer and all their loans? This action cannot be undone!');">
+                                    <button class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                                
+                            {% elif user.role == 'manager' %}
+                                <!-- Manager: Can delete customers with APPROVED/DISBURSED/COMPLETED/DEFAULTED loans -->
+                                {% if data.has_approved or data.has_disbursed or data.has_completed or data.has_defaulted %}
+                                <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
+                                      onsubmit="return confirm('Are you sure you want to delete this customer and all their loans? This action cannot be undone!');">
+                                    <button class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                                {% else %}
+                                <button class="btn btn-sm btn-secondary" disabled title="Manager can only delete customers with APPROVED, DISBURSED, COMPLETED, or DEFAULTED loans">
+                                    Delete
+                                </button>
+                                <span class="text-muted" style="font-size:10px;">(Pending only)</span>
+                                {% endif %}
+                                
+                            {% elif user.role == 'loan_officer' %}
+                                <!-- Loan Officer: Can only delete customers with NO approved/disbursed/completed/defaulted loans -->
+                                {% if not data.has_approved and not data.has_disbursed and not data.has_completed and not data.has_defaulted %}
+                                <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
+                                      onsubmit="return confirm('Are you sure you want to delete this customer and all their loans? This action cannot be undone!');">
+                                    <button class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                                {% else %}
+                                <button class="btn btn-sm btn-secondary" disabled title="Loan Officer can only delete customers with PENDING or REJECTED loans (no approved/disbursed/completed/defaulted)">
+                                    Delete
+                                </button>
+                                <span class="text-muted" style="font-size:10px;">(Has approved)</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No customers found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<a href="/dashboard" class="btn btn-secondary mt-3">Back to Dashboard</a>
+
+{% endblock %}

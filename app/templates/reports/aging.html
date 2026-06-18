@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Aging Report</h2>
+
+{% if fee_results.loans_updated > 0 %}
+<div class="alert alert-warning">
+    ⚠️ Applied late fees to {{ fee_results.loans_updated }} loan(s). Total fees: R{{ "%.2f"|format(fee_results.total_fees_applied) }}
+</div>
+{% endif %}
+
+{% if default_results.loans_defaulted > 0 %}
+<div class="alert alert-danger">
+    🚫 Marked {{ default_results.loans_defaulted }} loan(s) as DEFAULTED and blacklisted {{ default_results.customers_blacklisted }} customer(s).
+</div>
+{% endif %}
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Current (0-30 days)</h6>
+                <div class="stat-number text-success">R{{ "%.2f"|format(aging_data.totals.current) }}</div>
+                <small class="text-muted">{{ aging_data.current|length }} loans</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>31-60 Days</h6>
+                <div class="stat-number text-warning">R{{ "%.2f"|format(aging_data.totals.days_31_60) }}</div>
+                <small class="text-muted">{{ aging_data.days_31_60|length }} loans</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>61-90 Days</h6>
+                <div class="stat-number text-warning">R{{ "%.2f"|format(aging_data.totals.days_61_90) }}</div>
+                <small class="text-muted">{{ aging_data.days_61_90|length }} loans</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>90+ Days</h6>
+                <div class="stat-number text-danger">R{{ "%.2f"|format(aging_data.totals.days_90_plus) }}</div>
+                <small class="text-muted">{{ aging_data.days_90_plus|length }} loans</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card section-card mb-4">
+    <div class="card-header">Outstanding Balance: R{{ "%.2f"|format(total_outstanding) }}</div>
+    <div class="card-body">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Loan ID</th>
+                    <th>Customer</th>
+                    <th>Balance</th>
+                    <th>Days Late</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loan in aging_data.current %}
+                <tr>
+                    <td>{{ loan.id }}</td>
+                    <td>{{ loan.customer_name }}</td>
+                    <td>R{{ "%.2f"|format(loan.balance) }}</td>
+                    <td>{{ loan.days_late }}</td>
+                    <td><span class="badge-pending">ACTIVE</span></td>
+                </tr>
+                {% endfor %}
+                {% for loan in aging_data.days_31_60 %}
+                <tr>
+                    <td>{{ loan.id }}</td>
+                    <td>{{ loan.customer_name }}</td>
+                    <td>R{{ "%.2f"|format(loan.balance) }}</td>
+                    <td><span class="badge-pending">{{ loan.days_late }}</span></td>
+                    <td><span class="badge-pending">OVERDUE</span></td>
+                </tr>
+                {% endfor %}
+                {% for loan in aging_data.days_61_90 %}
+                <tr>
+                    <td>{{ loan.id }}</td>
+                    <td>{{ loan.customer_name }}</td>
+                    <td>R{{ "%.2f"|format(loan.balance) }}</td>
+                    <td><span class="badge-pending">{{ loan.days_late }}</span></td>
+                    <td><span class="badge-pending">OVERDUE</span></td>
+                </tr>
+                {% endfor %}
+                {% for loan in aging_data.days_90_plus %}
+                <tr>
+                    <td>{{ loan.id }}</td>
+                    <td>{{ loan.customer_name }}</td>
+                    <td>R{{ "%.2f"|format(loan.balance) }}</td>
+                    <td><span class="badge-rejected">{{ loan.days_late }}</span></td>
+                    <td><span class="badge-rejected">OVERDUE</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<a href="/reports/" class="btn btn-secondary">Back to Reports</a>
+{% endblock %}

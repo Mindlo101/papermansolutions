@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Apply for Loan</h2>
+
+{% if error == "blacklisted" %}
+<div class="alert alert-danger">
+    <strong>Error:</strong> This customer is blacklisted and cannot apply for loans.
+</div>
+{% elif error == "has_active_loan" %}
+<div class="alert alert-warning">
+    <strong>Warning:</strong> This customer already has an active loan.
+</div>
+{% elif error == "invalid_customer" %}
+<div class="alert alert-danger">
+    <strong>Error:</strong> Please select a valid customer.
+</div>
+{% endif %}
+
+<div class="card section-card">
+    <div class="card-body">
+        <form method="post" action="/loans/apply">
+            <div class="mb-3">
+                <label class="form-label">Customer</label>
+                <select name="customer_id" class="form-select" required>
+                    <option value="">Select Customer</option>
+                    {% for customer in customers %}
+                    <option value="{{ customer.id }}">{{ customer.first_name }} {{ customer.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Loan Amount (R)</label>
+                <input type="number" step="0.01" name="amount" class="form-control" placeholder="Enter amount" required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Term (months)</label>
+                <input type="number" name="term_months" class="form-control" placeholder="Enter term in months" required>
+            </div>
+            
+            <button type="submit" class="btn btn-success w-100">Apply for Loan</button>
+        </form>
+    </div>
+</div>
+
+<a href="/loans/" class="btn btn-secondary mt-3">Back to Loans</a>
+{% endblock %}

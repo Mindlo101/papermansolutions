@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Welcome Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="top-title">Loan Management Dashboard</h2>
+        <p class="text-muted" style="font-size:14px; margin:0;">
+            Welcome back, <strong>{{ user.full_name or user.username }}</strong>
+            <span class="role-label">({{ user.role|replace('_', ' ')|upper }})</span>
+        </p>
+    </div>
+    <div>
+        <span class="badge" style="background:#1a365d; color:white; padding:8px 16px; font-size:13px;">
+            {{ user.role|replace('_', ' ')|upper }}
+        </span>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Total Customers</h6>
+                <div class="stat-number">{{ total_customers }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Total Loans</h6>
+                <div class="stat-number">{{ total_loans }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-2">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Approved</h6>
+                <div class="stat-number text-success">{{ approved_loans }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-2">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Pending</h6>
+                <div class="stat-number text-warning">{{ pending_loans }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-2">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Rejected</h6>
+                <div class="stat-number text-danger">{{ rejected_loans }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="card section-card mb-4">
+    <div class="card-header">Customers</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>ID Number</th>
+                        <th>Phone</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr>
+                        <td>{{ customer.id }}</td>
+                        <td>{{ customer.first_name }} {{ customer.last_name }}</td>
+                        <td>{{ customer.id_number }}</td>
+                        <td>{{ customer.phone }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No customers found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loans Table -->
+<div class="card section-card">
+    <div class="card-header">Loans</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer ID</th>
+                        <th>Amount</th>
+                        <th>Total Repayment</th>
+                        <th>Monthly Installment</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr>
+                        <td>{{ loan.id }}</td>
+                        <td>{{ loan.customer_id }}</td>
+                        <td>R{{ "%.2f"|format(loan.amount) }}</td>
+                        <td>R{{ "%.2f"|format(loan.total_repayment) }}</td>
+                        <td>R{{ "%.2f"|format(loan.monthly_installment) }}</td>
+                        <td>
+                            {% if loan.status == "APPROVED" %}
+                                <span class="badge-approved">APPROVED</span>
+                            {% elif loan.status == "REJECTED" %}
+                                <span class="badge-rejected">REJECTED</span>
+                            {% elif loan.status == "DISBURSED" %}
+                                <span class="badge-disbursed">DISBURSED</span>
+                            {% elif loan.status == "COMPLETED" %}
+                                <span class="badge-completed">COMPLETED</span>
+                            {% elif loan.status == "DEFAULTED" %}
+                                <span class="badge-defaulted">DEFAULTED</span>
+                            {% else %}
+                                <span class="badge-pending">PENDING</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Only Admin and Manager can approve/reject/disburse -->
+                            {% if user.role in ['admin', 'manager'] %}
+                                {% if loan.status == "PENDING" %}
+                                <form action="/loans/{{ loan.id }}/approve" method="post" style="display:inline;">
+                                    <button class="btn btn-success btn-sm">Approve</button>
+                                </form>
+                                <form action="/loans/{{ loan.id }}/reject" method="post" style="display:inline;">
+                                    <button class="btn btn-danger btn-sm">Reject</button>
+                                </form>
+                                {% elif loan.status == "APPROVED" %}
+                                <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
+                                    <button class="btn btn-primary btn-sm">Disburse</button>
+                                </form>
+                                {% endif %}
+                            {% elif user.role == 'loan_officer' %}
+                                <span class="text-muted" style="font-size:12px;">🔒 View Only</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No loans found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<div class="mt-4 text-center text-muted" style="font-size:12px; border-top:1px solid #e5e7eb; padding-top:15px;">
+    <span>
+        Logged in as <strong>{{ user.username }}</strong>
+        ({{ user.role|replace('_', ' ')|upper }})
+    </span>
+</div>
+
+{% endblock %}

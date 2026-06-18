@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Daily Cash Report</h2>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Date</h6>
+                <div class="stat-number">{{ today.strftime('%Y-%m-%d') }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Total Collected</h6>
+                <div class="stat-number text-success">R{{ "%.2f"|format(total_collected) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Late Fees Applied</h6>
+                <div class="stat-number text-warning">{{ total_fees }}</div>
+                <small class="text-muted">loans with late fees</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card section-card">
+    <div class="card-header">Today's Payments</div>
+    <div class="card-body">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Payment ID</th>
+                    <th>Loan ID</th>
+                    <th>Amount</th>
+                    <th>Method</th>
+                    <th>Reference</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for payment in payments %}
+                <tr>
+                    <td>{{ payment.id }}</td>
+                    <td>{{ payment.loan_id }}</td>
+                    <td>R{{ "%.2f"|format(payment.amount_paid) }}</td>
+                    <td>{{ payment.method }}</td>
+                    <td>{{ payment.reference or 'N/A' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center">No payments recorded today.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<a href="/reports/" class="btn btn-secondary mt-3">Back to Reports</a>
+{% endblock %}

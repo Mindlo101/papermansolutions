@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Add Customer</h2>
+
+{% if error %}
+<div class="alert alert-danger">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+<div class="card section-card">
+    <div class="card-body">
+        <form method="post" action="/customers/add">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">First Name</label>
+                        <input type="text" name="first_name" class="form-control" value="{{ first_name or '' }}" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" name="last_name" class="form-control" value="{{ last_name or '' }}" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">ID Number</label>
+                <input type="text" name="id_number" class="form-control {% if error %}is-invalid{% endif %}" 
+                       value="{{ id_number or '' }}" placeholder="Enter ID Number" required>
+                {% if error %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% else %}
+                <small class="text-muted">This ID number must be unique in the system.</small>
+                {% endif %}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Phone Number</label>
+                <input type="text" name="phone" class="form-control" value="{{ phone or '' }}" placeholder="Enter Phone Number" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Email (Optional)</label>
+                <input type="email" name="email" class="form-control" value="{{ email or '' }}" placeholder="Enter Email Address">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Address (Optional)</label>
+                <textarea name="address" class="form-control" rows="2" placeholder="Enter Address">{{ address or '' }}</textarea>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Employer (Optional)</label>
+                        <input type="text" name="employer" class="form-control" value="{{ employer or '' }}" placeholder="Employer Name">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Monthly Income (Optional)</label>
+                        <input type="number" step="0.01" name="monthly_income" class="form-control" 
+                               value="{{ monthly_income or '' }}" placeholder="0.00">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-success w-100">Add Customer</button>
+        </form>
+    </div>
+</div>
+
+<a href="/customers/" class="btn btn-secondary mt-3">Back to Customers</a>
+
+{% endblock %}

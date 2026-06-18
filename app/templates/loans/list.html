@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Loans</h2>
+<a href="/loans/apply" class="btn btn-primary mb-3">Apply Loan</a>
+<table class="table table-bordered">
+    <thead>
+        <tr><th>ID</th><th>Customer</th><th>Amount</th><th>Total Repayment</th><th>Status</th><th>Balance</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+        {% for l in loans %}
+        <tr>
+            <td>{{ l.id }}</td>
+            <td>{{ l.customer_id }}</td>
+            <td>{{ l.amount }}</td>
+            <td>{{ l.total_repayment }}</td>
+            <td>{{ l.status }}</td>
+            <td>{{ l.balance_remaining }}</td>
+            <td>
+                {% if l.status == "PENDING" %}
+                <form action="/loans/{{ l.id }}/approve" method="post" style="display:inline;"><button class="btn btn-sm btn-success">Approve</button></form>
+                <form action="/loans/{{ l.id }}/reject" method="post" style="display:inline;"><button class="btn btn-sm btn-danger">Reject</button></form>
+                {% elif l.status == "APPROVED" %}
+                <form action="/loans/{{ l.id }}/disburse" method="post" style="display:inline;"><button class="btn btn-sm btn-primary">Disburse</button></form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

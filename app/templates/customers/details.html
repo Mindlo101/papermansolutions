@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Customer Details</h2>
+
+<div class="card section-card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Name:</strong> {{ customer.first_name }} {{ customer.last_name }}</p>
+                <p><strong>ID:</strong> {{ customer.id_number }}</p>
+                <p><strong>Phone:</strong> {{ customer.phone }}</p>
+                <p><strong>Email:</strong> {{ customer.email|default('N/A') }}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Address:</strong> {{ customer.address|default('N/A') }}</p>
+                <p><strong>Employer:</strong> {{ customer.employer|default('N/A') }}</p>
+                <p><strong>Monthly Income:</strong> R {{ customer.monthly_income|default(0) }}</p>
+                <p><strong>Blacklisted:</strong> {% if customer.is_blacklisted %}Yes{% else %}No{% endif %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="mb-3">
+    <a href="/customers/{{ customer.id }}/edit" class="btn btn-primary">✏️ Edit Customer</a>
+    <a href="/documents/upload?customer_id={{ customer.id }}" class="btn btn-dark">📄 Upload Document</a>
+    <a href="/customers/" class="btn btn-secondary">Back to Customers</a>
+</div>
+
+<!-- Loans Section -->
+<h3 class="mt-4">Loans</h3>
+<div class="card section-card mb-4">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Loan ID</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr>
+                        <td>{{ loan.id }}</td>
+                        <td>R {{ "%.2f"|format(loan.amount) }}</td>
+                        <td>
+                            {% if loan.status == "APPROVED" %}
+                                <span class="badge-approved">APPROVED</span>
+                            {% elif loan.status == "REJECTED" %}
+                                <span class="badge-rejected">REJECTED</span>
+                            {% elif loan.status == "DISBURSED" %}
+                                <span class="badge-disbursed">DISBURSED</span>
+                            {% elif loan.status == "COMPLETED" %}
+                                <span class="badge-completed">COMPLETED</span>
+                            {% elif loan.status == "DEFAULTED" %}
+                                <span class="badge-defaulted">DEFAULTED</span>
+                            {% else %}
+                                <span class="badge-pending">{{ loan.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>R {{ "%.2f"|format(loan.balance_remaining) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center">No loans found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Documents Section -->
+<h3 class="mt-4">📄 Documents</h3>
+<div class="card section-card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>File Name</th>
+                        <th>Uploaded At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in customer.documents %}
+                    <tr>
+                        <td>
+                            <span class="badge" style="background:#1a365d; color:white;">
+                                {{ doc.file_type|upper }}
+                            </span>
+                        </td>
+                        <td>{{ doc.file_name }}</td>
+                        <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="/documents/download/{{ doc.id }}" class="btn btn-sm btn-primary">⬇️ Download</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No documents uploaded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<a href="/customers/" class="btn btn-secondary mt-3">Back to Customers</a>
+
+{% endblock %}

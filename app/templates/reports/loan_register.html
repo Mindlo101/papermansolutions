@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">Loan Register</h2>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Total Loans</h6>
+                <div class="stat-number">{{ total_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Total Amount</h6>
+                <div class="stat-number">R{{ "%.2f"|format(total_amount) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Total Interest</h6>
+                <div class="stat-number">R{{ "%.2f"|format(total_interest) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body">
+                <h6>Outstanding</h6>
+                <div class="stat-number text-warning">R{{ "%.2f"|format(total_outstanding) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card section-card">
+    <div class="card-header">Status Breakdown</div>
+    <div class="card-body">
+        <div class="row">
+            {% for status, count in status_counts.items() %}
+            <div class="col-md-2 mb-2">
+                <span class="badge" style="background: #1a365d; color: white; padding: 8px 16px; font-size: 14px;">
+                    {{ status }}: {{ count }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card section-card mt-4">
+    <div class="card-header">All Loans</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Interest</th>
+                        <th>Total</th>
+                        <th>Monthly</th>
+                        <th>Status</th>
+                        <th>Balance</th>
+                        <th>Next Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr>
+                        <td>{{ loan.id }}</td>
+                        <td>{{ loan.customer_name }}</td>
+                        <td>R{{ "%.2f"|format(loan.amount) }}</td>
+                        <td>R{{ "%.2f"|format(loan.interest_amount) }}</td>
+                        <td>R{{ "%.2f"|format(loan.total_repayment) }}</td>
+                        <td>R{{ "%.2f"|format(loan.monthly_installment) }}</td>
+                        <td>
+                            {% if loan.status == "APPROVED" %}
+                                <span class="badge-approved">APPROVED</span>
+                            {% elif loan.status == "REJECTED" %}
+                                <span class="badge-rejected">REJECTED</span>
+                            {% elif loan.status == "COMPLETED" %}
+                                <span class="badge-approved">COMPLETED</span>
+                            {% elif loan.status == "DEFAULTED" %}
+                                <span class="badge-rejected">DEFAULTED</span>
+                            {% else %}
+                                <span class="badge-pending">{{ loan.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>R{{ "%.2f"|format(loan.balance_remaining) }}</td>
+                        <td>{{ loan.next_due_date.strftime('%Y-%m-%d') if loan.next_due_date else 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<a href="/reports/" class="btn btn-secondary mt-3">Back to Reports</a>
+{% endblock %}

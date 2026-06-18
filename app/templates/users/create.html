@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">➕ Create New User</h2>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card section-card">
+    <div class="card-body">
+        <form method="post" action="/users/create">
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input type="text" name="username" class="form-control" required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Full Name</label>
+                <input type="text" name="full_name" class="form-control" required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-control" required minlength="4">
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Role</label>
+                <select name="role" class="form-select" required>
+                    <option value="loan_officer">Loan Officer</option>
+                    <option value="manager">Manager</option>
+                </select>
+                <small class="text-muted">
+                    <strong>Loan Officer:</strong> Can add customers, apply for loans, record payments (Cannot approve/disburse)<br>
+                    <strong>Manager:</strong> Can approve/disburse loans, manage customers, view everything
+                </small>
+            </div>
+            
+            <button type="submit" class="btn btn-success w-100">Create User</button>
+        </form>
+    </div>
+</div>
+
+<a href="/users/" class="btn btn-secondary mt-3">Back to Users</a>
+{% endblock %}

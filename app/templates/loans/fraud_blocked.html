@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">🚨 AI Fraud Detection Alert</h2>
+
+<div class="card section-card mb-4" style="border-left: 5px solid #dc3545;">
+    <div class="card-header" style="background: #dc3545; color: white; font-weight: 600;">
+        ⚠️ Loan Application Blocked by AI
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Customer:</strong> {{ customer.first_name }} {{ customer.last_name }}</p>
+                <p><strong>ID Number:</strong> {{ customer.id_number }}</p>
+                <p><strong>Loan Amount:</strong> R {{ "%.2f"|format(amount) }}</p>
+                <p><strong>Term:</strong> {{ term_months }} months</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Risk Score:</strong> 
+                    <span class="badge" style="background: #dc3545; color: white; font-size: 16px; padding: 8px 16px;">
+                        {{ fraud_result.risk_score }}% - {{ fraud_result.risk_level }}
+                    </span>
+                </p>
+                <p><strong>AI Decision:</strong> 
+                    <span class="badge" style="background: #dc3545; color: white; font-size: 14px; padding: 6px 14px;">
+                        {{ fraud_result.ai_decision }}
+                    </span>
+                </p>
+                <p><strong>Flags Found:</strong> {{ fraud_result.flag_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fraud Flags -->
+<div class="card section-card mb-4">
+    <div class="card-header" style="background: #1a365d; color: white;">
+        🚩 Fraud Flags Detected
+    </div>
+    <div class="card-body">
+        {% for flag in fraud_result.flags %}
+        <div class="alert {% if flag.severity == 'critical' %}alert-danger{% elif flag.severity == 'high' %}alert-danger{% elif flag.severity == 'medium' %}alert-warning{% else %}alert-info{% endif %}">
+            <strong>
+                {% if flag.severity == 'critical' %}🔴{% elif flag.severity == 'high' %}🔴{% elif flag.severity == 'medium' %}🟡{% else %}🟢{% endif %}
+                {{ flag.type|replace('_', ' ')|upper }}
+            </strong>
+            <br>
+            {{ flag.message }}
+            <br>
+            <small class="text-muted">Severity: {{ flag.severity|upper }}</small>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="card section-card">
+    <div class="card-header">Actions</div>
+    <div class="card-body">
+        {% if can_override %}
+        <form action="/loans/{{ loan.id }}/override-fraud" method="post">
+            <div class="alert alert-warning">
+                <strong>⚠️ Admin Override Required</strong><br>
+                This loan was blocked by AI fraud detection. Only Admin can override this decision.
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Override Reason</label>
+                <textarea name="override_reason" class="form-control" rows="2" placeholder="Explain why this loan should be approved despite AI flags..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger">⚠️ Override & Approve</button>
+            <a href="/loans/" class="btn btn-secondary">Cancel</a>
+        </form>
+        {% else %}
+        <div class="alert alert-danger">
+            <strong>🔒 Access Denied</strong><br>
+            This loan has been blocked by AI fraud detection. Only an Administrator can override this decision.<br>
+            Please contact your administrator.
+        </div>
+        <a href="/loans/" class="btn btn-secondary">Back to Loans</a>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

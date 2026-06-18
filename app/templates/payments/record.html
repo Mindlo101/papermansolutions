@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Record Payment</h2>
+<form method="post" action="/payments/record">
+    <div class="mb-3"><label>Loan</label><select name="loan_id" class="form-select" required>{% for l in loans %}<option value="{{ l.id }}">Loan #{{ l.id }} - Balance: R{{ l.balance_remaining }}</option>{% endfor %}</select></div>
+    <div class="mb-3"><label>Amount Paid</label><input type="number" step="0.01" name="amount_paid" class="form-control" required></div>
+    <div class="mb-3"><label>Payment Date</label><input type="date" name="payment_date" class="form-control" required></div>
+    <div class="mb-3"><label>Method</label><select name="method" class="form-select"><option>cash</option><option>bank_transfer</option><option>mobile_money</option></select></div>
+    <div class="mb-3"><label>Reference</label><input type="text" name="reference" class="form-control"></div>
+    <button type="submit" class="btn btn-primary">Record Payment</button>
+    <a href="/loans/" class="btn btn-secondary">Back</a>
+</form>
+{% endblock %}
