@@ -1,11 +1,16 @@
-web: uvicorn app.main:app --host[phases.setup]
+[phases.setup]
 nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = [
+    "pip install --upgrade pip",
+    "pip install -r requirements.txt"
+]
 
 [phases.deploy]
-cmds = ["uvicorn app.main:app --host 0.0.0.0 --port $PORT"]
+cmds = [
+    "python -c 'from app.database import engine, Base; from app.models import *; Base.metadata.create_all(engine)'"
+]
 
 [start]
-cmd = "uvicorn app.main:app --host 0.0.0.0 --port $PORT" 0.0.0.0 --port $PORT
+cmd = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
