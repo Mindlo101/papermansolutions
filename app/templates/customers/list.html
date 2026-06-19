@@ -25,7 +25,6 @@
 <div class="alert alert-success">✅ Customer created successfully!</div>
 {% endif %}
 
-<!-- Rest of the existing table remains the same -->
 <div class="card section-card">
     <div class="card-body">
         <div class="table-responsive">
@@ -64,16 +63,13 @@
                         <td>
                             <a href="/customers/{{ data.customer.id }}" class="btn btn-sm btn-info">View</a>
                             
-                            <!-- Delete Button with Role-Based Logic -->
                             {% if user.role == 'admin' %}
-                                <!-- Admin: Can delete anyone -->
                                 <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
                                       onsubmit="return confirm('Are you sure you want to move this customer to the Recycle Bin? They can be restored within 30 days.');">
                                     <button class="btn btn-sm btn-danger">Delete</button>
                                 </form>
                                 
                             {% elif user.role == 'manager' %}
-                                <!-- Manager: Can delete customers with APPROVED/DISBURSED/COMPLETED/DEFAULTED loans -->
                                 {% if data.has_approved or data.has_disbursed or data.has_completed or data.has_defaulted %}
                                 <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
                                       onsubmit="return confirm('Are you sure you want to move this customer to the Recycle Bin? They can be restored within 30 days.');">
@@ -87,7 +83,6 @@
                                 {% endif %}
                                 
                             {% elif user.role == 'loan_officer' %}
-                                <!-- Loan Officer: Can only delete customers with NO approved/disbursed/completed/defaulted loans -->
                                 {% if not data.has_approved and not data.has_disbursed and not data.has_completed and not data.has_defaulted %}
                                 <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
                                       onsubmit="return confirm('Are you sure you want to move this customer to the Recycle Bin? They can be restored within 30 days.');">

@@ -78,7 +78,8 @@ def trash_view(
     return templates.TemplateResponse("customers/trash.html", {
         "request": request,
         "deleted_customers": deleted_customers,
-        "user": current_user
+        "user": current_user,
+        "now": datetime.now()
     })
 
 
@@ -106,6 +107,31 @@ def restore_customer(
     
     log_action(db, current_user.id, current_user.username, "RESTORE_CUSTOMER", "customers", customer_id, ip_address=request.client.host)
     return RedirectResponse(url="/customers/trash?success=restored", status_code=303)
+
+
+@router.post("/trash/empty")
+def empty_trash(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Only Admin can empty trash
+    require_role(current_user, ["admin"])
+    
+    # Get all deleted customers older than 30 days
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    old_deleted = db.query(Customer).filter(
+        Customer.deleted_at.isnot(None),
+        Customer.deleted_at < thirty_days_ago
+    ).all()
+    
+    count = len(old_deleted)
+    for customer in old_deleted:
+        db.delete(customer)
+    db.commit()
+    
+    log_action(db, current_user.id, current_user.username, "EMPTY_TRASH", "customers", 0, ip_address=request.client.host, old_value=f"Deleted {count} customers")
+    return RedirectResponse(url="/customers/trash?success=trash_emptied", status_code=303)
 
 
 @router.get("/add", response_class=HTMLResponse)
@@ -350,28 +376,3 @@ def delete_customer(
     log_action(db, current_user.id, current_user.username, "DELETE_CUSTOMER", "customers", customer_id, ip_address=request.client.host, old_value=reason)
     
     return RedirectResponse(url="/customers/?success=customer_deleted", status_code=303)
-
-
-@router.post("/trash/empty")
-def empty_trash(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # Only Admin can empty trash
-    require_role(current_user, ["admin"])
-    
-    # Get all deleted customers older than 30 days
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    old_deleted = db.query(Customer).filter(
-        Customer.deleted_at.isnot(None),
-        Customer.deleted_at < thirty_days_ago
-    ).all()
-    
-    count = len(old_deleted)
-    for customer in old_deleted:
-        db.delete(customer)
-    db.commit()
-    
-    log_action(db, current_user.id, current_user.username, "EMPTY_TRASH", "customers", 0, ip_address=request.client.host, old_value=f"Deleted {count} customers")
-    return RedirectResponse(url="/customers/trash?success=trash_emptied", status_code=303)
