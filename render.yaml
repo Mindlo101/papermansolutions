@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: papermansolutions
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./papermansolutions.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: INTEREST_RATE
+        value: 30.0
+      - key: LATE_FEE_PERCENT
+        value: 5.0
+      - key: GRACE_PERIOD_DAYS
+        value: 3
