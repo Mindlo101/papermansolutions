@@ -128,7 +128,7 @@ class FraudDetector:
         flags = []
         risk_score = 0
         
-        # Check 1: Income vs Loan amount
+        # Check 1: Income vs Loan amount (Annual perspective)
         annual_income = customer.monthly_income * 12
         total_repayment = loan_amount * 1.3  # 30% interest
         
@@ -150,25 +150,33 @@ class FraudDetector:
                 })
                 risk_score += 15
         
-        # Check 2: Monthly installment vs monthly income
+        # Check 2: Monthly installment vs monthly income (Monthly perspective)
+        # FIXED: This is the important check that catches high installment ratios
         monthly_installment = total_repayment / term_months
         if customer.monthly_income > 0:
             installment_ratio = (monthly_installment / customer.monthly_income) * 100
             
-            if installment_ratio > 30:
+            if installment_ratio > 50:
                 flags.append({
                     "type": "high_installment_ratio",
                     "severity": "high",
-                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 30%)"
+                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 50%)"
                 })
-                risk_score += 25
-            elif installment_ratio > 20:
+                risk_score += 35
+            elif installment_ratio > 35:
                 flags.append({
                     "type": "medium_installment_ratio",
                     "severity": "medium",
-                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 20%)"
+                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 35%)"
                 })
-                risk_score += 10
+                risk_score += 20
+            elif installment_ratio > 25:
+                flags.append({
+                    "type": "low_installment_ratio",
+                    "severity": "low",
+                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 25%)"
+                })
+                risk_score += 8
         
         # Check 3: No income recorded
         if customer.monthly_income <= 0:
@@ -178,6 +186,24 @@ class FraudDetector:
                 "message": "No income recorded for this customer"
             })
             risk_score += 20
+        
+        # Check 4: Loan amount vs monthly income (how many months to repay)
+        if customer.monthly_income > 0:
+            months_to_repay = loan_amount / customer.monthly_income
+            if months_to_repay > 12:
+                flags.append({
+                    "type": "loan_too_high_vs_income",
+                    "severity": "medium",
+                    "message": f"Loan amount is {months_to_repay:.1f} times monthly income (exceeds 12 months)"
+                })
+                risk_score += 15
+            elif months_to_repay > 6:
+                flags.append({
+                    "type": "loan_moderate_vs_income",
+                    "severity": "low",
+                    "message": f"Loan amount is {months_to_repay:.1f} times monthly income (exceeds 6 months)"
+                })
+                risk_score += 8
         
         return {
             "flags": flags,
@@ -240,12 +266,15 @@ def can_override_ai_decision(user_role: str, risk_level: str) -> bool:
     Check if a user can override AI decision based on their role
     """
     if user_role == "admin":
+        # Admin can override ANY AI decision
         return True
     elif user_role == "manager":
-        if risk_level == "MEDIUM":
+        # Manager can override LOW and MEDIUM risk only (not HIGH)
+        if risk_level in ["LOW", "MEDIUM"]:
             return True
         return False
     else:
+        # Loan Officer cannot override anything
         return False
 
 
@@ -256,6 +285,6 @@ def get_override_message(risk_level: str) -> str:
     messages = {
         "LOW": "This loan was auto-approved by AI. Are you sure you want to reject it?",
         "MEDIUM": "This loan was flagged for review by AI. Are you sure you want to approve it?",
-        "HIGH": "This loan was BLOCKED by AI fraud detection. Only Admin can override this decision."
+        "HIGH": "⚠️ This loan was BLOCKED by AI fraud detection. Only Admin can override this decision."
     }
     return messages.get(risk_level, "AI fraud detection override")
