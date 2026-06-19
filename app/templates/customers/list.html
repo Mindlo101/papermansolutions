@@ -2,30 +2,30 @@
 {% block content %}
 <h2 class="top-title mb-4">Customers</h2>
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="/customers/add" class="btn btn-dark">➕ Add Customer</a>
+    </div>
+    <div>
+        <a href="/customers/trash" class="btn btn-outline-secondary">
+            🗑️ Recycle Bin
+            {% if trash_count > 0 %}
+            <span class="badge badge-pending" style="background:#ffc107; color:black; margin-left:4px;">
+                {{ trash_count }}
+            </span>
+            {% endif %}
+        </a>
+    </div>
+</div>
+
 {% if request.query_params.get('success') == 'customer_deleted' %}
-<div class="alert alert-success">✅ Customer deleted successfully.</div>
+<div class="alert alert-info">✅ Customer moved to Recycle Bin.</div>
+{% endif %}
+{% if request.query_params.get('success') == 'customer_created' %}
+<div class="alert alert-success">✅ Customer created successfully!</div>
 {% endif %}
 
-{% if request.query_params.get('error') == 'manager_cannot_delete_pending_only' %}
-<div class="alert alert-warning">
-    ⚠️ As a Manager, you can only delete customers with APPROVED, DISBURSED, COMPLETED, or DEFAULTED loans.<br>
-    This customer only has PENDING or REJECTED loans.
-</div>
-{% endif %}
-
-{% if request.query_params.get('error') == 'officer_cannot_delete_approved' %}
-<div class="alert alert-warning">
-    ⚠️ As a Loan Officer, you can only delete customers with PENDING or REJECTED loans (no approved/disbursed/completed/defaulted loans).<br>
-    This customer has APPROVED, DISBURSED, COMPLETED, or DEFAULTED loans.
-</div>
-{% endif %}
-
-{% if request.query_params.get('error') == 'permission_denied' %}
-<div class="alert alert-danger">❌ You don't have permission to delete this customer.</div>
-{% endif %}
-
-<a href="/customers/add" class="btn btn-dark mb-3">➕ Add Customer</a>
-
+<!-- Rest of the existing table remains the same -->
 <div class="card section-card">
     <div class="card-body">
         <div class="table-responsive">
@@ -68,7 +68,7 @@
                             {% if user.role == 'admin' %}
                                 <!-- Admin: Can delete anyone -->
                                 <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
-                                      onsubmit="return confirm('Are you sure you want to delete this customer and all their loans? This action cannot be undone!');">
+                                      onsubmit="return confirm('Are you sure you want to move this customer to the Recycle Bin? They can be restored within 30 days.');">
                                     <button class="btn btn-sm btn-danger">Delete</button>
                                 </form>
                                 
@@ -76,7 +76,7 @@
                                 <!-- Manager: Can delete customers with APPROVED/DISBURSED/COMPLETED/DEFAULTED loans -->
                                 {% if data.has_approved or data.has_disbursed or data.has_completed or data.has_defaulted %}
                                 <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
-                                      onsubmit="return confirm('Are you sure you want to delete this customer and all their loans? This action cannot be undone!');">
+                                      onsubmit="return confirm('Are you sure you want to move this customer to the Recycle Bin? They can be restored within 30 days.');">
                                     <button class="btn btn-sm btn-danger">Delete</button>
                                 </form>
                                 {% else %}
@@ -90,7 +90,7 @@
                                 <!-- Loan Officer: Can only delete customers with NO approved/disbursed/completed/defaulted loans -->
                                 {% if not data.has_approved and not data.has_disbursed and not data.has_completed and not data.has_defaulted %}
                                 <form action="/customers/{{ data.customer.id }}/delete" method="post" style="display:inline;" 
-                                      onsubmit="return confirm('Are you sure you want to delete this customer and all their loans? This action cannot be undone!');">
+                                      onsubmit="return confirm('Are you sure you want to move this customer to the Recycle Bin? They can be restored within 30 days.');">
                                     <button class="btn btn-sm btn-danger">Delete</button>
                                 </form>
                                 {% else %}

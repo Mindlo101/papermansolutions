@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from datetime import datetime, timedelta
 from ..database import get_db
 from ..models.customer import Customer
 from ..models.loan import Loan
@@ -26,7 +27,8 @@ def list_customers(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    customers = db.query(Customer).all()
+    # Only show active customers (not deleted)
+    customers = db.query(Customer).filter(Customer.deleted_at.is_(None)).all()
     
     # Get loan status for each customer to determine delete permissions
     customer_data = []
@@ -50,11 +52,60 @@ def list_customers(
             "loan_count": len(loans)
         })
     
+    # Count items in recycle bin
+    trash_count = db.query(Customer).filter(Customer.deleted_at.isnot(None)).count()
+    
     return templates.TemplateResponse("customers/list.html", {
         "request": request,
         "customer_data": customer_data,
+        "trash_count": trash_count,
         "user": current_user
     })
+
+
+@router.get("/trash", response_class=HTMLResponse)
+def trash_view(
+    request: Request, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    # Only Admin and Manager can view trash
+    require_role(current_user, ["admin", "manager"])
+    
+    # Get all soft-deleted customers
+    deleted_customers = db.query(Customer).filter(Customer.deleted_at.isnot(None)).all()
+    
+    return templates.TemplateResponse("customers/trash.html", {
+        "request": request,
+        "deleted_customers": deleted_customers,
+        "user": current_user
+    })
+
+
+@router.post("/{customer_id}/restore")
+def restore_customer(
+    customer_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Only Admin and Manager can restore
+    require_role(current_user, ["admin", "manager"])
+    
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+    
+    if customer.deleted_at is None:
+        return RedirectResponse(url="/customers/trash?error=already_active", status_code=303)
+    
+    # Restore the customer
+    customer.deleted_at = None
+    customer.deleted_by = None
+    db.commit()
+    
+    log_action(db, current_user.id, current_user.username, "RESTORE_CUSTOMER", "customers", customer_id, ip_address=request.client.host)
+    return RedirectResponse(url="/customers/trash?success=restored", status_code=303)
 
 
 @router.get("/add", response_class=HTMLResponse)
@@ -86,32 +137,41 @@ def create_customer(
 ):
     require_role(current_user, ["admin", "manager", "loan_officer"])
     
-    # Check if ID number already exists (case-insensitive)
+    # Check if ID number already exists (including deleted customers)
     existing = db.query(Customer).filter(
         func.lower(Customer.id_number) == func.lower(id_number)
     ).first()
     
     if existing:
-        return templates.TemplateResponse("customers/add.html", {
-            "request": request,
-            "user": current_user,
-            "error": f"ID Number '{id_number}' already exists for customer: {existing.first_name} {existing.last_name}",
-            "first_name": first_name,
-            "last_name": last_name,
-            "id_number": id_number,
-            "phone": phone,
-            "email": email,
-            "address": address,
-            "employer": employer,
-            "monthly_income": monthly_income
-        })
-    
-    # Also check if phone number already exists (optional - prevent duplicate phones)
-    existing_phone = db.query(Customer).filter(Customer.phone == phone).first()
-    if existing_phone:
-        # Just warn, but don't block - some households may share phone
-        # Still allow creation but log warning
-        print(f"⚠️ Warning: Phone number {phone} already exists for customer: {existing_phone.first_name} {existing_phone.last_name}")
+        if existing.deleted_at is not None:
+            # Customer is in trash, restore them instead
+            existing.deleted_at = None
+            existing.deleted_by = None
+            # Update details
+            existing.first_name = first_name
+            existing.last_name = last_name
+            existing.phone = phone
+            existing.email = email
+            existing.address = address
+            existing.employer = employer
+            existing.monthly_income = monthly_income
+            db.commit()
+            log_action(db, current_user.id, current_user.username, "RESTORE_CUSTOMER", "customers", existing.id, ip_address=request.client.host)
+            return RedirectResponse(url="/customers/", status_code=303)
+        else:
+            return templates.TemplateResponse("customers/add.html", {
+                "request": request,
+                "user": current_user,
+                "error": f"ID Number '{id_number}' already exists for customer: {existing.first_name} {existing.last_name}",
+                "first_name": first_name,
+                "last_name": last_name,
+                "id_number": id_number,
+                "phone": phone,
+                "email": email,
+                "address": address,
+                "employer": employer,
+                "monthly_income": monthly_income
+            })
     
     customer = Customer(
         first_name=first_name,
@@ -127,7 +187,7 @@ def create_customer(
     db.commit()
     db.refresh(customer)
     log_action(db, current_user.id, current_user.username, "CREATE_CUSTOMER", "customers", customer.id, ip_address=request.client.host)
-    return RedirectResponse(url="/customers/?success=customer_created", status_code=303)
+    return RedirectResponse(url="/customers/", status_code=303)
 
 
 @router.get("/{customer_id}", response_class=HTMLResponse)
@@ -137,7 +197,7 @@ def view_customer(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.deleted_at.is_(None)).first()
     if not customer:
         raise HTTPException(status_code=404)
     loans = db.query(Loan).filter(Loan.customer_id == customer_id).all()
@@ -158,7 +218,7 @@ def edit_customer_form(
 ):
     require_role(current_user, ["admin", "manager", "loan_officer"])
     
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.deleted_at.is_(None)).first()
     if not customer:
         raise HTTPException(404, "Customer not found")
     
@@ -187,7 +247,7 @@ def update_customer(
 ):
     require_role(current_user, ["admin", "manager", "loan_officer"])
     
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.deleted_at.is_(None)).first()
     if not customer:
         raise HTTPException(404, "Customer not found")
     
@@ -228,7 +288,7 @@ def delete_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id, Customer.deleted_at.is_(None)).first()
     if not customer:
         raise HTTPException(404, "Customer not found")
     
@@ -282,14 +342,36 @@ def delete_customer(
             status_code=303
         )
     
-    # Delete all loans first (cascade will handle it, but we log it)
-    for loan in loans:
-        log_action(db, current_user.id, current_user.username, "DELETE_LOAN_CASCADE", "loans", loan.id, ip_address=request.client.host)
-    
-    # Delete the customer (cascade will delete loans)
-    db.delete(customer)
+    # Soft delete - move to recycle bin
+    customer.deleted_at = datetime.now()
+    customer.deleted_by = current_user.id
     db.commit()
     
     log_action(db, current_user.id, current_user.username, "DELETE_CUSTOMER", "customers", customer_id, ip_address=request.client.host, old_value=reason)
     
     return RedirectResponse(url="/customers/?success=customer_deleted", status_code=303)
+
+
+@router.post("/trash/empty")
+def empty_trash(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Only Admin can empty trash
+    require_role(current_user, ["admin"])
+    
+    # Get all deleted customers older than 30 days
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    old_deleted = db.query(Customer).filter(
+        Customer.deleted_at.isnot(None),
+        Customer.deleted_at < thirty_days_ago
+    ).all()
+    
+    count = len(old_deleted)
+    for customer in old_deleted:
+        db.delete(customer)
+    db.commit()
+    
+    log_action(db, current_user.id, current_user.username, "EMPTY_TRASH", "customers", 0, ip_address=request.client.host, old_value=f"Deleted {count} customers")
+    return RedirectResponse(url="/customers/trash?success=trash_emptied", status_code=303)

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="top-title mb-4">🗑️ Recycle Bin</h2>
+
+{% if request.query_params.get('success') == 'restored' %}
+<div class="alert alert-success">✅ Customer restored successfully!</div>
+{% endif %}
+{% if request.query_params.get('success') == 'trash_emptied' %}
+<div class="alert alert-success">✅ Old deleted customers have been permanently removed.</div>
+{% endif %}
+{% if request.query_params.get('error') == 'already_active' %}
+<div class="alert alert-warning">⚠️ This customer is already active.</div>
+{% endif %}
+
+<div class="card section-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Deleted Customers</span>
+        <span>
+            <span class="badge badge-pending">{{ deleted_customers|length }} items</span>
+            {% if deleted_customers and user.role == 'admin' %}
+            <form action="/customers/trash/empty" method="post" style="display:inline;" 
+                  onsubmit="return confirm('⚠️ This will permanently delete all customers older than 30 days. Are you sure?');">
+                <button class="btn btn-sm btn-danger">🗑️ Empty Trash</button>
+            </form>
+            {% endif %}
+        </span>
+    </div>
+    <div class="card-body">
+        {% if deleted_customers %}
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>ID Number</th>
+                        <th>Phone</th>
+                        <th>Deleted On</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in deleted_customers %}
+                    <tr>
+                        <td>{{ customer.id }}</td>
+                        <td>{{ customer.first_name }} {{ customer.last_name }}</td>
+                        <td>{{ customer.id_number }}</td>
+                        <td>{{ customer.phone }}</td>
+                        <td>
+                            {{ customer.deleted_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% if customer.deleted_at %}
+                            <span class="text-muted" style="font-size:11px;">
+                                ({{ ((now - customer.deleted_at).days) }} days ago)
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form action="/customers/{{ customer.id }}/restore" method="post" style="display:inline;">
+                                <button class="btn btn-sm btn-success">♻️ Restore</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center text-muted">🗑️ Trash is empty. No deleted customers.</p>
+        {% endif %}
+    </div>
+</div>
+
+<a href="/customers/" class="btn btn-secondary mt-3">Back to Customers</a>
+
+<script>
+    // Add current time for calculation
+    const now = new Date();
+    document.querySelectorAll('[data-days-ago]').forEach(el => {
+        const days = Math.floor((now - new Date(el.dataset.date)) / (1000 * 60 * 60 * 24));
+        if (days > 0) {
+            el.textContent = `(${days} days ago)`;
+        }
+    });
+</script>
+
+{% endblock %}

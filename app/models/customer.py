@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..database import Base
@@ -18,7 +18,11 @@ class Customer(Base):
     is_blacklisted = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # NEW: Soft delete columns
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, nullable=True)
 
-    # Use string references for relationships
+    # Relationships
     loans = relationship("Loan", back_populates="customer", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="customer", cascade="all, delete-orphan")
