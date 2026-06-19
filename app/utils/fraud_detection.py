@@ -129,13 +129,13 @@ class FraudDetector:
         risk_score = 0
         
         # If no income recorded, flag it
-        if customer.monthly_income <= 0:
+        if not customer.monthly_income or customer.monthly_income <= 0:
             flags.append({
                 "type": "no_income",
                 "severity": "high",
-                "message": "No income recorded for this customer. Please verify income details."
+                "message": "No income recorded for this customer. Please verify income details before approving."
             })
-            risk_score += 30
+            risk_score += 40
             return {
                 "flags": flags,
                 "risk_score": min(risk_score, 100)
@@ -145,76 +145,118 @@ class FraudDetector:
         
         # ==========================================
         # CALCULATE MAX AFFORDABLE LOAN
-        # 30% of income is the repayment capacity
+        # 30% of income is the safe repayment capacity
         # Total repayment = Loan × 1.3 (30% interest)
         # So: Loan × 1.3 = Income × 30%
         # Therefore: Loan = (Income × 30%) / 1.3
         # ==========================================
-        max_repayment_capacity = monthly_income * 0.30  # 30% of income
-        max_affordable_loan = max_repayment_capacity / 1.3  # Reverse the 30% interest
-        total_repayment = loan_amount * 1.3  # 30% interest
+        max_repayment_capacity = monthly_income * 0.30
+        max_affordable_loan = max_repayment_capacity / 1.3
+        total_repayment = loan_amount * 1.3
         
         # ==========================================
-        # CHECK: Does the loan exceed the safe limit?
+        # CHECK 1: Does the loan exceed the safe limit?
         # ==========================================
         if loan_amount > max_affordable_loan:
             excess_percentage = ((loan_amount - max_affordable_loan) / max_affordable_loan) * 100
-            if excess_percentage > 50:
+            
+            # ALWAYS add a flag if loan exceeds recommendation
+            if excess_percentage > 100:
                 flags.append({
-                    "type": "loan_exceeds_capacity",
-                    "severity": "high",
-                    "message": f"⚠️ This loan of R{loan_amount:,.2f} exceeds the recommended amount of R{max_affordable_loan:,.2f} by {excess_percentage:.0f}%. Based on income of R{monthly_income:,.2f}, the safe repayment capacity is 30% of income (R{max_repayment_capacity:,.2f} per month)."
+                    "type": "loan_exceeds_capacity_critical",
+                    "severity": "critical",
+                    "message": f"🔴 CRITICAL: Loan of R{loan_amount:,.2f} is {excess_percentage:.0f}% ABOVE the recommended amount of R{max_affordable_loan:,.2f}. Customer earns R{monthly_income:,.2f} per month."
                 })
-                risk_score += 25
+                risk_score += 45
+            elif excess_percentage > 50:
+                flags.append({
+                    "type": "loan_exceeds_capacity_high",
+                    "severity": "high",
+                    "message": f"🔴 HIGH RISK: Loan of R{loan_amount:,.2f} is {excess_percentage:.0f}% ABOVE the recommended amount of R{max_affordable_loan:,.2f}. Customer earns R{monthly_income:,.2f} per month."
+                })
+                risk_score += 35
             elif excess_percentage > 20:
                 flags.append({
-                    "type": "loan_exceeds_capacity",
+                    "type": "loan_exceeds_capacity_medium",
                     "severity": "medium",
-                    "message": f"⚠️ This loan of R{loan_amount:,.2f} exceeds the recommended amount of R{max_affordable_loan:,.2f} by {excess_percentage:.0f}%. Based on income of R{monthly_income:,.2f}, the safe repayment capacity is 30% of income (R{max_repayment_capacity:,.2f} per month)."
+                    "message": f"🟡 MEDIUM RISK: Loan of R{loan_amount:,.2f} is {excess_percentage:.0f}% ABOVE the recommended amount of R{max_affordable_loan:,.2f}. Review required."
                 })
-                risk_score += 15
+                risk_score += 20
             else:
                 flags.append({
-                    "type": "loan_slightly_exceeds",
+                    "type": "loan_exceeds_capacity_low",
                     "severity": "low",
-                    "message": f"⚠️ This loan of R{loan_amount:,.2f} slightly exceeds the recommended amount of R{max_affordable_loan:,.2f} by {excess_percentage:.0f}%. Please review."
+                    "message": f"🟢 Loan of R{loan_amount:,.2f} slightly exceeds the recommended amount of R{max_affordable_loan:,.2f} by {excess_percentage:.0f}%. Review recommended."
                 })
                 risk_score += 8
         else:
-            savings = max_affordable_loan - loan_amount
             flags.append({
                 "type": "loan_affordable",
                 "severity": "info",
-                "message": f"✅ This loan of R{loan_amount:,.2f} is within the recommended amount of R{max_affordable_loan:,.2f} based on income of R{monthly_income:,.2f}. Safe repayment capacity is 30% of income (R{max_repayment_capacity:,.2f} per month)."
+                "message": f"✅ Loan of R{loan_amount:,.2f} is WITHIN the recommended amount of R{max_affordable_loan:,.2f}. Customer earns R{monthly_income:,.2f} per month."
             })
         
         # ==========================================
-        # CHECK: Total repayment vs monthly income
+        # CHECK 2: Total repayment vs monthly income
         # ==========================================
         repayment_ratio = (total_repayment / monthly_income) * 100
         
-        if repayment_ratio > 50:
+        if repayment_ratio > 70:
+            flags.append({
+                "type": "critical_repayment_ratio",
+                "severity": "critical",
+                "message": f"🔴 Total repayment of R{total_repayment:,.2f} is {repayment_ratio:.1f}% of monthly income. This is EXTREMELY HIGH."
+            })
+            risk_score += 20
+        elif repayment_ratio > 50:
             flags.append({
                 "type": "high_repayment_ratio",
                 "severity": "high",
-                "message": f"Total repayment of R{total_repayment:,.2f} is {repayment_ratio:.1f}% of monthly income. This is very high."
+                "message": f"⚠️ Total repayment of R{total_repayment:,.2f} is {repayment_ratio:.1f}% of monthly income. This is very high."
             })
             risk_score += 15
         elif repayment_ratio > 30:
             flags.append({
                 "type": "medium_repayment_ratio",
                 "severity": "medium",
-                "message": f"Total repayment of R{total_repayment:,.2f} is {repayment_ratio:.1f}% of monthly income. This exceeds the recommended 30%."
+                "message": f"⚠️ Total repayment of R{total_repayment:,.2f} is {repayment_ratio:.1f}% of monthly income. This exceeds the recommended 30%."
             })
-            risk_score += 8
+            risk_score += 10
         
         # ==========================================
-        # CHECK: Summary recommendation
+        # CHECK 3: Loan to income ratio
+        # ==========================================
+        loan_to_income = loan_amount / monthly_income
+        
+        if loan_to_income > 3:
+            flags.append({
+                "type": "loan_to_income_critical",
+                "severity": "critical",
+                "message": f"🔴 Loan is {loan_to_income:.1f}x monthly income. This is DANGEROUSLY HIGH."
+            })
+            risk_score += 15
+        elif loan_to_income > 2:
+            flags.append({
+                "type": "loan_to_income_high",
+                "severity": "high",
+                "message": f"⚠️ Loan is {loan_to_income:.1f}x monthly income. This is very high."
+            })
+            risk_score += 10
+        elif loan_to_income > 1:
+            flags.append({
+                "type": "loan_to_income_medium",
+                "severity": "medium",
+                "message": f"⚠️ Loan is {loan_to_income:.1f}x monthly income. Review recommended."
+            })
+            risk_score += 5
+        
+        # ==========================================
+        # CHECK 4: Affordability Summary (Always included)
         # ==========================================
         flags.append({
             "type": "affordability_summary",
             "severity": "info",
-            "message": f"💡 Based on monthly income of R{monthly_income:,.2f}: Safe repayment = 30% (R{max_repayment_capacity:,.2f}) | Max recommended loan = R{max_affordable_loan:,.2f}"
+            "message": f"📊 SUMMARY: Income R{monthly_income:,.2f} | Safe repayment (30%) = R{max_repayment_capacity:,.2f} | Max recommended loan = R{max_affordable_loan:,.2f} | Requested = R{loan_amount:,.2f}"
         })
         
         return {
@@ -233,6 +275,8 @@ class FraudDetector:
         # Run all checks
         identity_check = self.check_identity_fraud(customer)
         pattern_check = self.check_loan_application_pattern(customer.id)
+        
+        # Pass loan_amount explicitly
         affordability_check = self.check_affordability(customer, loan_amount, term_months)
         
         # Combine flags
