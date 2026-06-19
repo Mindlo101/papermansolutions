@@ -19,11 +19,11 @@ def dashboard(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    # Basic stats
-    total_customers = db.query(Customer).count()
+    # Basic stats - EXCLUDE deleted customers
+    total_customers = db.query(Customer).filter(Customer.deleted_at.is_(None)).count()
     total_loans = db.query(Loan).count()
     
-    # FIXED: Count APPROVED, DISBURSED, and ACTIVE as "approved" loans
+    # Count APPROVED, DISBURSED, and ACTIVE as "approved" loans
     approved_loans = db.query(Loan).filter(
         Loan.status.in_(["APPROVED", "DISBURSED", "ACTIVE"])
     ).count()
@@ -34,8 +34,10 @@ def dashboard(
     completed_loans = db.query(Loan).filter(Loan.status == "COMPLETED").count()
     defaulted_loans = db.query(Loan).filter(Loan.status == "DEFAULTED").count()
 
-    # Get all customers and loans for the forms
-    customers = db.query(Customer).all()
+    # Get all active customers (not deleted) - EXCLUDE deleted
+    customers = db.query(Customer).filter(Customer.deleted_at.is_(None)).all()
+    
+    # Get all loans
     loans = db.query(Loan).all()
 
     # Calculate total portfolio value
