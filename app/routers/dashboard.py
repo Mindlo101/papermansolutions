@@ -22,7 +22,12 @@ def dashboard(
     # Basic stats
     total_customers = db.query(Customer).count()
     total_loans = db.query(Loan).count()
-    approved_loans = db.query(Loan).filter(Loan.status == "APPROVED").count()
+    
+    # FIXED: Count APPROVED, DISBURSED, and ACTIVE as "approved" loans
+    approved_loans = db.query(Loan).filter(
+        Loan.status.in_(["APPROVED", "DISBURSED", "ACTIVE"])
+    ).count()
+    
     pending_loans = db.query(Loan).filter(Loan.status == "PENDING").count()
     rejected_loans = db.query(Loan).filter(Loan.status == "REJECTED").count()
     disbursed_loans = db.query(Loan).filter(Loan.status == "DISBURSED").count()
