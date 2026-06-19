@@ -1,8 +1,9 @@
 from datetime import date, timedelta
 
-def calculate_loan(amount: float, term_months: int, annual_interest_rate: float = 30.0):
+def calculate_loan(amount: float, term_months: int = 1, annual_interest_rate: float = 30.0):
     """
     Flat rate interest calculation.
+    Default term is 1 month.
     Returns dict with interest_amount, total_repayment, monthly_installment, schedule.
     """
     interest = amount * (annual_interest_rate / 100)

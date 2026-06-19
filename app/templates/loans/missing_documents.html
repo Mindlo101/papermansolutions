@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card section-card" style="border-left: 5px solid #ffc107;">
+    <div class="card-header" style="background: #ffc107; color: black; font-weight: 600;">
+        ⚠️ Required Documents Missing
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning">
+            <h4>Before approving this loan, the following documents must be uploaded:</h4>
+            <ul class="mt-3" style="font-size: 16px;">
+                {% for doc in missing_docs %}
+                <li>
+                    {% if doc == 'id_copy' %}🪪 ID Copy
+                    {% elif doc == 'proof_income' %}💰 Proof of Income
+                    {% else %}{{ doc }}
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Loan Details</div>
+                    <div class="card-body">
+                        <p><strong>Customer:</strong> {{ customer.first_name }} {{ customer.last_name }}</p>
+                        <p><strong>Loan Amount:</strong> R {{ "%.2f"|format(loan.amount) }}</p>
+                        <p><strong>Term:</strong> {{ loan.term_months }} month(s)</p>
+                        <p><strong>Status:</strong> <span class="badge-pending">PENDING</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Actions</div>
+                    <div class="card-body">
+                        <p>Please upload the missing documents:</p>
+                        <a href="/documents/upload?customer_id={{ customer.id }}" class="btn btn-dark w-100 mb-2">
+                            📄 Upload Documents
+                        </a>
+                        <a href="/loans/" class="btn btn-secondary w-100">
+                            Back to Loans
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

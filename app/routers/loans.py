@@ -50,11 +50,12 @@ def apply_form(
     current_user: User = Depends(get_current_user)
 ):
     require_role(current_user, ["admin", "manager", "loan_officer"])
-    customers = db.query(Customer).filter(Customer.is_blacklisted == False).all()
+    customers = db.query(Customer).filter(Customer.is_blacklisted == False, Customer.deleted_at.is_(None)).all()
     return templates.TemplateResponse("loans/apply.html", {
         "request": request,
         "customers": customers,
-        "user": current_user
+        "user": current_user,
+        "term_months": 1  # Fixed to 1 month
     })
 
 
@@ -63,7 +64,7 @@ def create_loan(
     request: Request,
     customer_id: int = Form(...),
     amount: float = Form(...),
-    term_months: int = Form(...),
+    term_months: int = Form(1),  # Default to 1 month
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -89,7 +90,7 @@ def create_loan(
     fraud_detector = FraudDetector(db)
     fraud_result = fraud_detector.detect_fraud(customer, amount, term_months)
     
-    # Calculate loan details first
+    # Calculate loan details (with 1 month fixed term)
     calc = calculate_loan(amount, term_months, settings.INTEREST_RATE)
     
     # Create the loan first
@@ -126,9 +127,7 @@ def create_loan(
     
     # Check if AI blocked the loan
     if fraud_result["ai_decision"] == "BLOCK":
-        # Only Admin can override HIGH risk loans
         if current_user.role == "admin":
-            # Admin can override - show the fraud blocked page with override option
             return templates.TemplateResponse("loans/fraud_blocked.html", {
                 "request": request,
                 "customer": customer,
@@ -140,7 +139,6 @@ def create_loan(
                 "can_override": True
             })
         else:
-            # Non-admin users cannot proceed - show blocked page without override
             return templates.TemplateResponse("loans/fraud_blocked.html", {
                 "request": request,
                 "customer": customer,
@@ -154,7 +152,6 @@ def create_loan(
     
     # For MEDIUM risk, warn but allow (Manager can approve)
     if fraud_result["risk_level"] == "MEDIUM" and current_user.role not in ["admin", "manager"]:
-        # Loan Officer cannot proceed with medium risk
         return templates.TemplateResponse("loans/fraud_review.html", {
             "request": request,
             "customer": customer,
@@ -165,7 +162,6 @@ def create_loan(
             "user": current_user
         })
 
-    # If we get here, loan is approved by AI (LOW risk or MEDIUM with proper role)
     log_action(db, current_user.id, current_user.username, "CREATE_LOAN", "loans", loan.id, ip_address=request.client.host)
     return RedirectResponse(url="/loans/", status_code=303)
 
@@ -178,36 +174,30 @@ def override_fraud(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Only Admin can override fraud blocks
     require_role(current_user, ["admin"])
     
     loan = db.query(Loan).filter(Loan.id == loan_id).first()
     if not loan:
         raise HTTPException(404, "Loan not found")
     
-    # Get fraud alert
     fraud_alert = db.query(FraudAlert).filter(FraudAlert.loan_id == loan_id).first()
     if not fraud_alert:
         raise HTTPException(404, "No fraud alert found for this loan")
     
-    # Check if already overridden
     if fraud_alert.is_overridden:
         return RedirectResponse(url="/loans/?error=already_overridden", status_code=303)
     
-    # Override the fraud decision
     fraud_alert.is_overridden = True
     fraud_alert.overridden_by = current_user.id
     fraud_alert.override_reason = override_reason
     fraud_alert.override_at = datetime.now()
     fraud_alert.final_status = "APPROVED"
     
-    # Update loan status to APPROVED
     loan.status = "APPROVED"
     loan.approval_date = date.today()
     
     db.commit()
     
-    # Log the override
     log_action(
         db, 
         current_user.id, 
@@ -219,9 +209,6 @@ def override_fraud(
         old_value=f"AI BLOCKED - Risk Score: {fraud_alert.risk_score}%",
         new_value=f"ADMIN OVERRIDE - Reason: {override_reason}"
     )
-    
-    print(f"✅ Admin {current_user.username} overrode fraud block on loan {loan_id}")
-    print(f"   Reason: {override_reason}")
     
     return RedirectResponse(url="/loans/", status_code=303)
 
@@ -241,6 +228,39 @@ def approve_loan(
     if loan.status != "PENDING":
         return RedirectResponse(url="/loans/", status_code=303)
 
+    # ============================================
+    # CHECK: Required documents uploaded
+    # ============================================
+    customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
+    
+    # Check if customer has uploaded required documents
+    required_docs = ["id_copy", "proof_income"]
+    uploaded_docs = db.query(Document).filter(
+        Document.customer_id == customer.id,
+        Document.file_type.in_(required_docs)
+    ).all()
+    
+    uploaded_types = [doc.file_type for doc in uploaded_docs]
+    missing_docs = [doc for doc in required_docs if doc not in uploaded_types]
+    
+    if missing_docs:
+        # Create a friendly message
+        doc_names = {
+            "id_copy": "ID Copy",
+            "proof_income": "Proof of Income"
+        }
+        missing_names = [doc_names.get(doc, doc) for doc in missing_docs]
+        missing_message = ", ".join(missing_names)
+        
+        return templates.TemplateResponse("loans/missing_documents.html", {
+            "request": request,
+            "loan": loan,
+            "customer": customer,
+            "missing_docs": missing_docs,
+            "missing_message": missing_message,
+            "user": current_user
+        })
+
     # Update loan status
     loan.status = "APPROVED"
     loan.approval_date = date.today()
@@ -249,31 +269,19 @@ def approve_loan(
     print(f"✅ Loan {loan_id} approved, generating PDF...")
 
     # Generate PDF agreement
-    customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
     doc_id = None
     
     if customer:
         try:
-            # Create uploads directory if it doesn't exist
             upload_dir = Path(settings.UPLOAD_DIR)
             upload_dir.mkdir(parents=True, exist_ok=True)
-            print(f"📁 Upload directory: {upload_dir}")
             
-            # Generate unique filename
             pdf_filename = f"agreement_loan_{loan_id}_{date.today()}.pdf"
             pdf_path = upload_dir / pdf_filename
-            print(f"📄 PDF path: {pdf_path}")
             
-            # Generate the PDF
             generate_loan_agreement(loan, customer, str(pdf_path))
-            print(f"✅ PDF generated successfully!")
             
-            # Check if file exists
             if pdf_path.exists():
-                print(f"✅ File exists: {pdf_path}")
-                print(f"📏 File size: {pdf_path.stat().st_size} bytes")
-                
-                # Store in documents table
                 doc = Document(
                     customer_id=customer.id,
                     loan_id=loan.id,

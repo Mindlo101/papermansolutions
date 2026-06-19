@@ -1,30 +1,75 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Loans</h2>
+<h2 class="top-title mb-4">Loans</h2>
 <a href="/loans/apply" class="btn btn-primary mb-3">Apply Loan</a>
-<table class="table table-bordered">
-    <thead>
-        <tr><th>ID</th><th>Customer</th><th>Amount</th><th>Total Repayment</th><th>Status</th><th>Balance</th><th>Actions</th></tr>
-    </thead>
-    <tbody>
-        {% for l in loans %}
-        <tr>
-            <td>{{ l.id }}</td>
-            <td>{{ l.customer_id }}</td>
-            <td>{{ l.amount }}</td>
-            <td>{{ l.total_repayment }}</td>
-            <td>{{ l.status }}</td>
-            <td>{{ l.balance_remaining }}</td>
-            <td>
-                {% if l.status == "PENDING" %}
-                <form action="/loans/{{ l.id }}/approve" method="post" style="display:inline;"><button class="btn btn-sm btn-success">Approve</button></form>
-                <form action="/loans/{{ l.id }}/reject" method="post" style="display:inline;"><button class="btn btn-sm btn-danger">Reject</button></form>
-                {% elif l.status == "APPROVED" %}
-                <form action="/loans/{{ l.id }}/disburse" method="post" style="display:inline;"><button class="btn btn-sm btn-primary">Disburse</button></form>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+
+<div class="card section-card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer ID</th>
+                        <th>Amount</th>
+                        <th>Total Repayment</th>
+                        <th>Monthly Installment</th>
+                        <th>Term</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr>
+                        <td>{{ loan.id }}</td>
+                        <td>{{ loan.customer_id }}</td>
+                        <td>R{{ "%.2f"|format(loan.amount) }}</td>
+                        <td>R{{ "%.2f"|format(loan.total_repayment) }}</td>
+                        <td>R{{ "%.2f"|format(loan.monthly_installment) }}</td>
+                        <td>{{ loan.term_months }} month(s)</td>
+                        <td>
+                            {% if loan.status == "APPROVED" %}
+                                <span class="badge-approved">APPROVED</span>
+                            {% elif loan.status == "REJECTED" %}
+                                <span class="badge-rejected">REJECTED</span>
+                            {% elif loan.status == "DISBURSED" %}
+                                <span class="badge-disbursed">DISBURSED</span>
+                            {% elif loan.status == "COMPLETED" %}
+                                <span class="badge-completed">COMPLETED</span>
+                            {% elif loan.status == "DEFAULTED" %}
+                                <span class="badge-defaulted">DEFAULTED</span>
+                            {% else %}
+                                <span class="badge-pending">PENDING</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.role in ['admin', 'manager'] %}
+                                {% if loan.status == "PENDING" %}
+                                <form action="/loans/{{ loan.id }}/approve" method="post" style="display:inline;">
+                                    <button class="btn btn-success btn-sm">Approve</button>
+                                </form>
+                                <form action="/loans/{{ loan.id }}/reject" method="post" style="display:inline;">
+                                    <button class="btn btn-danger btn-sm">Reject</button>
+                                </form>
+                                {% elif loan.status == "APPROVED" %}
+                                <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
+                                    <button class="btn btn-primary btn-sm">Disburse</button>
+                                </form>
+                                {% endif %}
+                            {% elif user.role == 'loan_officer' %}
+                                <span class="text-muted" style="font-size:12px;">🔒 View Only</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">No loans found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 {% endblock %}
