@@ -46,16 +46,11 @@
                         <td>
                             {% if user.role in ['admin', 'manager'] %}
                                 {% if loan.status == "PENDING" %}
-                                <form action="/loans/{{ loan.id }}/approve" method="post" style="display:inline;">
-                                    <button class="btn btn-success btn-sm">Approve</button>
-                                </form>
-                                <form action="/loans/{{ loan.id }}/reject" method="post" style="display:inline;">
-                                    <button class="btn btn-danger btn-sm">Reject</button>
-                                </form>
+                                    <a href="/loans/{{ loan.id }}/review" class="btn btn-sm btn-primary">🔍 Review</a>
                                 {% elif loan.status == "APPROVED" %}
-                                <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
-                                    <button class="btn btn-primary btn-sm">Disburse</button>
-                                </form>
+                                    <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
+                                        <button class="btn btn-sm btn-primary">💰 Disburse</button>
+                                    </form>
                                 {% endif %}
                             {% elif user.role == 'loan_officer' %}
                                 <span class="text-muted" style="font-size:12px;">🔒 View Only</span>

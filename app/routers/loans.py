@@ -55,7 +55,7 @@ def apply_form(
         "request": request,
         "customers": customers,
         "user": current_user,
-        "term_months": 1  # Fixed to 1 month
+        "term_months": 1
     })
 
 
@@ -64,7 +64,7 @@ def create_loan(
     request: Request,
     customer_id: int = Form(...),
     amount: float = Form(...),
-    term_months: int = Form(1),  # Default to 1 month
+    term_months: int = Form(1),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -90,7 +90,7 @@ def create_loan(
     fraud_detector = FraudDetector(db)
     fraud_result = fraud_detector.detect_fraud(customer, amount, term_months)
     
-    # Calculate loan details (with 1 month fixed term)
+    # Calculate loan details
     calc = calculate_loan(amount, term_months, settings.INTEREST_RATE)
     
     # Create the loan first
@@ -213,6 +213,134 @@ def override_fraud(
     return RedirectResponse(url="/loans/", status_code=303)
 
 
+# ============================================
+# LOAN REVIEW ROUTES (NEW)
+# ============================================
+
+@router.get("/{loan_id}/review", response_class=HTMLResponse)
+def review_loan(
+    loan_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Only Admin and Manager can review
+    require_role(current_user, ["admin", "manager"])
+    
+    loan = db.query(Loan).filter(Loan.id == loan_id).first()
+    if not loan:
+        raise HTTPException(404, "Loan not found")
+    
+    customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+    
+    # Get fraud alert
+    fraud_alert = db.query(FraudAlert).filter(FraudAlert.loan_id == loan_id).first()
+    
+    fraud_result = {
+        "risk_score": fraud_alert.risk_score if fraud_alert else 0,
+        "risk_level": fraud_alert.risk_level if fraud_alert else "UNKNOWN",
+        "ai_decision": fraud_alert.ai_decision if fraud_alert else "UNKNOWN",
+        "flags": json.loads(fraud_alert.flags) if fraud_alert and fraud_alert.flags else [],
+        "flag_count": fraud_alert.flag_count if fraud_alert else 0
+    }
+    
+    # Get loan counts for stats
+    total_loans = db.query(Loan).count()
+    customer_loan_count = db.query(Loan).filter(Loan.customer_id == customer.id).count()
+    active_loan_count = db.query(Loan).filter(
+        Loan.customer_id == customer.id,
+        Loan.status.in_(["PENDING", "APPROVED", "DISBURSED", "ACTIVE"])
+    ).count()
+    
+    return templates.TemplateResponse("loans/review.html", {
+        "request": request,
+        "loan": loan,
+        "customer": customer,
+        "fraud_result": fraud_result,
+        "total_loans": total_loans,
+        "customer_loan_count": customer_loan_count,
+        "active_loan_count": active_loan_count,
+        "user": current_user
+    })
+
+
+@router.post("/{loan_id}/review-approve")
+def review_approve_loan(
+    loan_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    require_role(current_user, ["admin", "manager"])
+    
+    loan = db.query(Loan).filter(Loan.id == loan_id).first()
+    if not loan:
+        raise HTTPException(404)
+    if loan.status != "PENDING":
+        return RedirectResponse(url="/loans/", status_code=303)
+    
+    # Update loan status
+    loan.status = "APPROVED"
+    loan.approval_date = date.today()
+    db.commit()
+    
+    # Generate PDF agreement
+    customer = db.query(Customer).filter(Customer.id == loan.customer_id).first()
+    if customer:
+        try:
+            upload_dir = Path(settings.UPLOAD_DIR)
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            
+            pdf_filename = f"agreement_loan_{loan_id}_{date.today()}.pdf"
+            pdf_path = upload_dir / pdf_filename
+            
+            generate_loan_agreement(loan, customer, str(pdf_path))
+            
+            if pdf_path.exists():
+                doc = Document(
+                    customer_id=customer.id,
+                    loan_id=loan.id,
+                    file_name=f"Loan_Agreement_{loan_id}.pdf",
+                    file_path=str(pdf_path),
+                    file_type="agreement",
+                    uploaded_by=current_user.id
+                )
+                db.add(doc)
+                db.commit()
+                print(f"✅ Document stored in database with ID: {doc.id}")
+        except Exception as e:
+            print(f"❌ PDF generation error: {e}")
+    
+    log_action(db, current_user.id, current_user.username, "APPROVE_LOAN", "loans", loan_id, ip_address=request.client.host, new_value="Approved from review page")
+    return RedirectResponse(url="/loans/", status_code=303)
+
+
+@router.post("/{loan_id}/review-reject")
+def review_reject_loan(
+    loan_id: int,
+    request: Request,
+    rejection_reason: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    require_role(current_user, ["admin", "manager"])
+    
+    loan = db.query(Loan).filter(Loan.id == loan_id).first()
+    if not loan:
+        raise HTTPException(404)
+    if loan.status != "PENDING":
+        return RedirectResponse(url="/loans/", status_code=303)
+    
+    loan.status = "REJECTED"
+    db.commit()
+    
+    reason = rejection_reason if rejection_reason else "No reason provided"
+    log_action(db, current_user.id, current_user.username, "REJECT_LOAN", "loans", loan_id, ip_address=request.client.host, new_value=f"Rejected from review page. Reason: {reason}")
+    return RedirectResponse(url="/loans/", status_code=303)
+
+
 @router.post("/{loan_id}/approve")
 def approve_loan(
     loan_id: int, 
@@ -244,7 +372,6 @@ def approve_loan(
     missing_docs = [doc for doc in required_docs if doc not in uploaded_types]
     
     if missing_docs:
-        # Create a friendly message
         doc_names = {
             "id_copy": "ID Copy",
             "proof_income": "Proof of Income"
