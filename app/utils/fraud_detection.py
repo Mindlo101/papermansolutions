@@ -128,82 +128,122 @@ class FraudDetector:
         flags = []
         risk_score = 0
         
-        # Check 1: Income vs Loan amount (Annual perspective)
-        annual_income = customer.monthly_income * 12
-        total_repayment = loan_amount * 1.3  # 30% interest
-        
-        if annual_income > 0:
-            debt_to_income = (total_repayment / annual_income) * 100
-            
-            if debt_to_income > 50:
-                flags.append({
-                    "type": "high_debt_to_income",
-                    "severity": "high",
-                    "message": f"Debt-to-income ratio is {debt_to_income:.1f}% (exceeds 50%)"
-                })
-                risk_score += 30
-            elif debt_to_income > 30:
-                flags.append({
-                    "type": "medium_debt_to_income",
-                    "severity": "medium",
-                    "message": f"Debt-to-income ratio is {debt_to_income:.1f}% (exceeds 30%)"
-                })
-                risk_score += 15
-        
-        # Check 2: Monthly installment vs monthly income (Monthly perspective)
-        # FIXED: This is the important check that catches high installment ratios
-        monthly_installment = total_repayment / term_months
-        if customer.monthly_income > 0:
-            installment_ratio = (monthly_installment / customer.monthly_income) * 100
-            
-            if installment_ratio > 50:
-                flags.append({
-                    "type": "high_installment_ratio",
-                    "severity": "high",
-                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 50%)"
-                })
-                risk_score += 35
-            elif installment_ratio > 35:
-                flags.append({
-                    "type": "medium_installment_ratio",
-                    "severity": "medium",
-                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 35%)"
-                })
-                risk_score += 20
-            elif installment_ratio > 25:
-                flags.append({
-                    "type": "low_installment_ratio",
-                    "severity": "low",
-                    "message": f"Monthly installment is {installment_ratio:.1f}% of income (exceeds 25%)"
-                })
-                risk_score += 8
-        
-        # Check 3: No income recorded
+        # If no income recorded, flag it
         if customer.monthly_income <= 0:
             flags.append({
                 "type": "no_income",
                 "severity": "high",
-                "message": "No income recorded for this customer"
+                "message": "No income recorded for this customer. Please verify income details."
+            })
+            risk_score += 30
+            return {
+                "flags": flags,
+                "risk_score": min(risk_score, 100)
+            }
+        
+        monthly_income = customer.monthly_income
+        annual_income = monthly_income * 12
+        total_repayment = loan_amount * 1.3  # 30% interest
+        monthly_installment = total_repayment / term_months
+        
+        # ==========================================
+        # CHECK 1: MONTHLY INSTALLMENT RATIO
+        # This is the most important check
+        # ==========================================
+        installment_ratio = (monthly_installment / monthly_income) * 100
+        
+        if installment_ratio > 50:
+            flags.append({
+                "type": "critical_installment_ratio",
+                "severity": "critical",
+                "message": f"Monthly installment of R{monthly_installment:,.2f} is {installment_ratio:.1f}% of income. This exceeds 50% - loan is unaffordable!"
+            })
+            risk_score += 45
+        elif installment_ratio > 35:
+            flags.append({
+                "type": "high_installment_ratio",
+                "severity": "high",
+                "message": f"Monthly installment of R{monthly_installment:,.2f} is {installment_ratio:.1f}% of income. This exceeds 35% - customer may struggle to repay."
+            })
+            risk_score += 30
+        elif installment_ratio > 25:
+            flags.append({
+                "type": "medium_installment_ratio",
+                "severity": "medium",
+                "message": f"Monthly installment of R{monthly_installment:,.2f} is {installment_ratio:.1f}% of income. This exceeds 25% - review recommended."
+            })
+            risk_score += 15
+        else:
+            flags.append({
+                "type": "good_installment_ratio",
+                "severity": "low",
+                "message": f"Monthly installment of R{monthly_installment:,.2f} is {installment_ratio:.1f}% of income. This is within acceptable range."
+            })
+        
+        # ==========================================
+        # CHECK 2: DEBT-TO-INCOME RATIO (Annual)
+        # ==========================================
+        debt_to_income = (total_repayment / annual_income) * 100
+        
+        if debt_to_income > 50:
+            flags.append({
+                "type": "high_debt_to_income",
+                "severity": "high",
+                "message": f"Total debt of R{total_repayment:,.2f} is {debt_to_income:.1f}% of annual income. This exceeds 50%."
             })
             risk_score += 20
+        elif debt_to_income > 30:
+            flags.append({
+                "type": "medium_debt_to_income",
+                "severity": "medium",
+                "message": f"Total debt of R{total_repayment:,.2f} is {debt_to_income:.1f}% of annual income. This exceeds 30%."
+            })
+            risk_score += 10
         
-        # Check 4: Loan amount vs monthly income (how many months to repay)
-        if customer.monthly_income > 0:
-            months_to_repay = loan_amount / customer.monthly_income
-            if months_to_repay > 12:
-                flags.append({
-                    "type": "loan_too_high_vs_income",
-                    "severity": "medium",
-                    "message": f"Loan amount is {months_to_repay:.1f} times monthly income (exceeds 12 months)"
-                })
-                risk_score += 15
-            elif months_to_repay > 6:
-                flags.append({
-                    "type": "loan_moderate_vs_income",
-                    "severity": "low",
-                    "message": f"Loan amount is {months_to_repay:.1f} times monthly income (exceeds 6 months)"
-                })
-                risk_score += 8
+        # ==========================================
+        # CHECK 3: LOAN SIZE VS MONTHLY INCOME
+        # ==========================================
+        loan_to_income_ratio = loan_amount / monthly_income
+        
+        if loan_to_income_ratio > 6:
+            flags.append({
+                "type": "loan_too_high",
+                "severity": "high",
+                "message": f"Loan amount of R{loan_amount:,.2f} is {loan_to_income_ratio:.1f} times monthly income. This exceeds 6 months of income."
+            })
+            risk_score += 20
+        elif loan_to_income_ratio > 3:
+            flags.append({
+                "type": "loan_moderate",
+                "severity": "medium",
+                "message": f"Loan amount of R{loan_amount:,.2f} is {loan_to_income_ratio:.1f} times monthly income. This exceeds 3 months of income."
+            })
+            risk_score += 10
+        
+        # ==========================================
+        # CHECK 4: TERM TOO SHORT FOR LOAN AMOUNT
+        # ==========================================
+        if installment_ratio > 40 and term_months <= 3:
+            flags.append({
+                "type": "term_too_short",
+                "severity": "high",
+                "message": f"Term of {term_months} months is too short for this loan amount. Consider extending the term to reduce monthly installment."
+            })
+            risk_score += 15
+        
+        # ==========================================
+        # CHECK 5: SUMMARY - WHAT THE CUSTOMER CAN AFFORD
+        # ==========================================
+        max_installment = monthly_income * 0.35  # 35% of income
+        max_loan_amount = (max_installment * term_months) / 1.3
+        
+        if loan_amount > max_loan_amount:
+            flags.append({
+                "type": "affordability_summary",
+                "severity": "medium",
+                "message": f"Based on income of R{monthly_income:,.2f}, the maximum affordable loan for {term_months} months is approximately R{max_loan_amount:,.2f}. Requested R{loan_amount:,.2f} is too high."
+            })
+            risk_score += 10
         
         return {
             "flags": flags,
@@ -266,15 +306,12 @@ def can_override_ai_decision(user_role: str, risk_level: str) -> bool:
     Check if a user can override AI decision based on their role
     """
     if user_role == "admin":
-        # Admin can override ANY AI decision
         return True
     elif user_role == "manager":
-        # Manager can override LOW and MEDIUM risk only (not HIGH)
         if risk_level in ["LOW", "MEDIUM"]:
             return True
         return False
     else:
-        # Loan Officer cannot override anything
         return False
 
 
