@@ -187,7 +187,13 @@
 
                 <hr>
 
+                <!-- PENDING LOAN: Approve or Reject -->
                 {% if loan.status == "PENDING" %}
+                    <div class="alert alert-info">
+                        <strong>Review Complete?</strong><br>
+                        After reviewing all details above, you can approve or reject this loan.
+                    </div>
+
                     <form action="/loans/{{ loan.id }}/review-approve" method="post">
                         <button type="submit" class="btn btn-success w-100 mb-2" onclick="return confirm('Are you sure you want to APPROVE this loan?');">
                             ✅ Approve Loan
@@ -203,6 +209,48 @@
                             ❌ Reject Loan
                         </button>
                     </form>
+
+                <!-- APPROVED LOAN: Show Disburse Button -->
+                {% elif loan.status == "APPROVED" %}
+                    <div class="alert alert-success">
+                        <strong>✅ Loan Approved!</strong><br>
+                        This loan has been approved. You can now disburse the funds.
+                    </div>
+
+                    <form action="/loans/{{ loan.id }}/disburse" method="post">
+                        <button type="submit" class="btn btn-primary w-100" onclick="return confirm('Ready to disburse this loan? The customer will receive R{{ "%.2f"|format(loan.amount) }}.');">
+                            💰 Disburse Loan
+                        </button>
+                    </form>
+
+                <!-- REJECTED LOAN -->
+                {% elif loan.status == "REJECTED" %}
+                    <div class="alert alert-danger">
+                        <strong>❌ Loan Rejected</strong><br>
+                        This loan has been rejected and cannot be changed.
+                    </div>
+
+                <!-- DISBURSED LOAN -->
+                {% elif loan.status == "DISBURSED" %}
+                    <div class="alert alert-info">
+                        <strong>💰 Loan Disbursed</strong><br>
+                        This loan has been disbursed to the customer.
+                    </div>
+
+                <!-- COMPLETED LOAN -->
+                {% elif loan.status == "COMPLETED" %}
+                    <div class="alert alert-success">
+                        <strong>✅ Loan Completed</strong><br>
+                        This loan has been fully repaid.
+                    </div>
+
+                <!-- DEFAULTED LOAN -->
+                {% elif loan.status == "DEFAULTED" %}
+                    <div class="alert alert-danger">
+                        <strong>⚠️ Loan Defaulted</strong><br>
+                        This loan has been defaulted.
+                    </div>
+
                 {% else %}
                     <div class="alert alert-info">
                         This loan has already been processed ({{ loan.status }}).
@@ -212,14 +260,6 @@
                 <hr>
 
                 <a href="/loans/" class="btn btn-secondary w-100">🔙 Back to Loans</a>
-
-                {% if loan.status == "APPROVED" and user.role in ['admin', 'manager'] %}
-                    <form action="/loans/{{ loan.id }}/disburse" method="post" class="mt-2">
-                        <button type="submit" class="btn btn-primary w-100" onclick="return confirm('Ready to disburse this loan?');">
-                            💰 Disburse Loan
-                        </button>
-                    </form>
-                {% endif %}
             </div>
         </div>
 
