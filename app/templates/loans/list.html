@@ -44,14 +44,17 @@
                             {% endif %}
                         </td>
                         <td>
+                            <!-- ADMIN & MANAGER: Can review and disburse -->
                             {% if user.role in ['admin', 'manager'] %}
                                 {% if loan.status == "PENDING" %}
                                     <a href="/loans/{{ loan.id }}/review" class="btn btn-sm btn-primary">🔍 Review</a>
                                 {% elif loan.status == "APPROVED" %}
                                     <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
-                                        <button class="btn btn-sm btn-primary">💰 Disburse</button>
+                                        <button class="btn btn-sm btn-success">💰 Disburse</button>
                                     </form>
                                 {% endif %}
+                            
+                            <!-- LOAN OFFICER: View only -->
                             {% elif user.role == 'loan_officer' %}
                                 <span class="text-muted" style="font-size:12px;">🔒 View Only</span>
                             {% endif %}

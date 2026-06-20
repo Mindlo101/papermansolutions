@@ -51,7 +51,11 @@ def apply_form(
     current_user: User = Depends(get_current_user)
 ):
     require_role(current_user, ["admin", "manager", "loan_officer"])
-    customers = db.query(Customer).filter(Customer.is_blacklisted == False, Customer.deleted_at.is_(None)).all()
+    # Only show customers who are NOT deleted and NOT blacklisted
+    customers = db.query(Customer).filter(
+        Customer.is_blacklisted == False, 
+        Customer.deleted_at.is_(None)
+    ).all()
     return templates.TemplateResponse("loans/apply.html", {
         "request": request,
         "customers": customers,
