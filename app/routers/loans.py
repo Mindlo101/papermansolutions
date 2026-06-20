@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Form, HTTPException
+from fastapi import APIRouter, Request, Depends, Form, HTTPException, File, UploadFile
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -60,11 +60,13 @@ def apply_form(
 
 
 @router.post("/apply")
-def create_loan(
+async def create_loan(
     request: Request,
     customer_id: int = Form(...),
     amount: float = Form(...),
     term_months: int = Form(1),
+    id_copy: UploadFile = File(...),
+    proof_income: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -85,6 +87,49 @@ def create_loan(
         return RedirectResponse(url="/loans/apply?error=has_active_loan", status_code=303)
 
     # ============================================
+    # SAVE UPLOADED DOCUMENTS
+    # ============================================
+    upload_dir = Path(settings.UPLOAD_DIR)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save ID Copy
+    id_copy_filename = f"{customer_id}_id_copy_{id_copy.filename}"
+    id_copy_path = upload_dir / id_copy_filename
+    with open(id_copy_path, "wb") as buffer:
+        content = await id_copy.read()
+        buffer.write(content)
+    
+    # Save Proof of Income
+    proof_filename = f"{customer_id}_proof_income_{proof_income.filename}"
+    proof_path = upload_dir / proof_filename
+    with open(proof_path, "wb") as buffer:
+        content = await proof_income.read()
+        buffer.write(content)
+    
+    # Store ID Copy in documents table
+    id_doc = Document(
+        customer_id=customer.id,
+        loan_id=None,
+        file_name=id_copy.filename,
+        file_path=str(id_copy_path),
+        file_type="id_copy",
+        uploaded_by=current_user.id
+    )
+    db.add(id_doc)
+    
+    # Store Proof of Income in documents table
+    proof_doc = Document(
+        customer_id=customer.id,
+        loan_id=None,
+        file_name=proof_income.filename,
+        file_path=str(proof_path),
+        file_type="proof_income",
+        uploaded_by=current_user.id
+    )
+    db.add(proof_doc)
+    db.commit()
+
+    # ============================================
     # AI FRAUD DETECTION
     # ============================================
     fraud_detector = FraudDetector(db)
@@ -93,7 +138,7 @@ def create_loan(
     # Calculate loan details
     calc = calculate_loan(amount, term_months, settings.INTEREST_RATE)
     
-    # Create the loan first
+    # Create the loan
     loan = Loan(
         customer_id=customer_id,
         amount=amount,
@@ -124,6 +169,11 @@ def create_loan(
     db.add(fraud_alert)
     db.commit()
     db.refresh(fraud_alert)
+    
+    # Update documents with loan_id
+    id_doc.loan_id = loan.id
+    proof_doc.loan_id = loan.id
+    db.commit()
     
     # Check if AI blocked the loan
     if fraud_result["ai_decision"] == "BLOCK":
@@ -214,7 +264,7 @@ def override_fraud(
 
 
 # ============================================
-# LOAN REVIEW ROUTES (NEW)
+# LOAN REVIEW ROUTES
 # ============================================
 
 @router.get("/{loan_id}/review", response_class=HTMLResponse)
@@ -238,11 +288,19 @@ def review_loan(
     # Get fraud alert
     fraud_alert = db.query(FraudAlert).filter(FraudAlert.loan_id == loan_id).first()
     
+    # Safely parse flags
+    flags = []
+    if fraud_alert and fraud_alert.flags:
+        try:
+            flags = json.loads(fraud_alert.flags)
+        except (json.JSONDecodeError, TypeError):
+            flags = []
+    
     fraud_result = {
         "risk_score": fraud_alert.risk_score if fraud_alert else 0,
         "risk_level": fraud_alert.risk_level if fraud_alert else "UNKNOWN",
         "ai_decision": fraud_alert.ai_decision if fraud_alert else "UNKNOWN",
-        "flags": json.loads(fraud_alert.flags) if fraud_alert and fraud_alert.flags else [],
+        "flags": flags,
         "flag_count": fraud_alert.flag_count if fraud_alert else 0
     }
     
