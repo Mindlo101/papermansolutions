@@ -66,6 +66,136 @@
     </div>
 </div>
 
+<!-- Quick Stats Row 2 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat" style="border-left: 4px solid #0d6efd;">
+            <div class="card-body">
+                <h6>Disbursed</h6>
+                <div class="stat-number" style="color:#0d6efd;">{{ disbursed_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat" style="border-left: 4px solid #198754;">
+            <div class="card-body">
+                <h6>Completed</h6>
+                <div class="stat-number" style="color:#198754;">{{ completed_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat" style="border-left: 4px solid #dc3545;">
+            <div class="card-body">
+                <h6>Defaulted</h6>
+                <div class="stat-number" style="color:#dc3545;">{{ defaulted_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat" style="border-left: 4px solid #6c757d;">
+            <div class="card-body">
+                <h6>Total Portfolio Value</h6>
+                <div class="stat-number" style="color:#1a365d; font-size:22px;">
+                    R{{ "%.2f"|format(total_portfolio_value or 0) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fraud Prevention Stats -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card section-card">
+            <div class="card-header" style="background: #1a365d; color: white;">
+                🤖 AI Fraud Prevention
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div style="font-size: 28px; font-weight: 700; color: #1a365d;">{{ total_fraud_checks }}</div>
+                            <small class="text-muted">Total Checks</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div style="font-size: 28px; font-weight: 700; color: #198754;">{{ low_risk_checks }}</div>
+                            <small class="text-muted">🟢 Low Risk</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div style="font-size: 28px; font-weight: 700; color: #ffc107;">{{ medium_risk_checks }}</div>
+                            <small class="text-muted">🟡 Medium Risk</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div style="font-size: 28px; font-weight: 700; color: #dc3545;">{{ high_risk_checks }}</div>
+                            <small class="text-muted">🔴 High Risk</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div style="font-size: 28px; font-weight: 700; color: #dc3545;">{{ blocked_by_ai }}</div>
+                            <small class="text-muted">🚫 Blocked by AI</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div style="font-size: 28px; font-weight: 700; color: #0d6efd;">{{ overridden_checks }}</div>
+                            <small class="text-muted">⚡ Admin Overrides</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Fraud Alerts -->
+                {% if recent_fraud_alerts %}
+                <div class="mt-3">
+                    <h6>Recent Fraud Alerts</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Risk Level</th>
+                                <th>AI Decision</th>
+                                <th>Flags</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in recent_fraud_alerts %}
+                            <tr>
+                                <td>
+                                    <span class="badge {% if alert.risk_level == 'HIGH' %}badge-rejected{% elif alert.risk_level == 'MEDIUM' %}badge-pending{% else %}badge-approved{% endif %}">
+                                        {{ alert.risk_level }}
+                                    </span>
+                                </td>
+                                <td>{{ alert.ai_decision }}</td>
+                                <td>{{ alert.flag_count }} flag(s)</td>
+                                <td>
+                                    {% if alert.is_overridden %}
+                                    <span class="badge-approved">✅ Overridden</span>
+                                    {% elif alert.ai_decision == 'BLOCK' %}
+                                    <span class="badge-rejected">🚫 Blocked</span>
+                                    {% elif alert.ai_decision == 'APPROVE' %}
+                                    <span class="badge-approved">✅ Approved</span>
+                                    {% else %}
+                                    <span class="badge-pending">⏳ Review</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Customers Table -->
 <div class="card section-card mb-4">
     <div class="card-header">Customers</div>
@@ -99,7 +229,7 @@
     </div>
 </div>
 
-<!-- Loans Table -->
+<!-- Loans Table - FIXED: Review button instead of Approve/Reject -->
 <div class="card section-card">
     <div class="card-header">Loans</div>
     <div class="card-body">
@@ -140,20 +270,19 @@
                             {% endif %}
                         </td>
                         <td>
-                            <!-- Only Admin and Manager can approve/reject/disburse -->
+                            <!-- ADMIN & MANAGER: Only Review button for PENDING loans -->
                             {% if user.role in ['admin', 'manager'] %}
                                 {% if loan.status == "PENDING" %}
-                                <form action="/loans/{{ loan.id }}/approve" method="post" style="display:inline;">
-                                    <button class="btn btn-success btn-sm">Approve</button>
-                                </form>
-                                <form action="/loans/{{ loan.id }}/reject" method="post" style="display:inline;">
-                                    <button class="btn btn-danger btn-sm">Reject</button>
-                                </form>
+                                    <a href="/loans/{{ loan.id }}/review" class="btn btn-sm btn-primary">🔍 Review</a>
                                 {% elif loan.status == "APPROVED" %}
-                                <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
-                                    <button class="btn btn-primary btn-sm">Disburse</button>
-                                </form>
+                                    <form action="/loans/{{ loan.id }}/disburse" method="post" style="display:inline;">
+                                        <button class="btn btn-sm btn-success">💰 Disburse</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-muted" style="font-size:12px;">—</span>
                                 {% endif %}
+                            
+                            <!-- LOAN OFFICER: View only -->
                             {% elif user.role == 'loan_officer' %}
                                 <span class="text-muted" style="font-size:12px;">🔒 View Only</span>
                             {% endif %}
@@ -175,6 +304,13 @@
     <span>
         Logged in as <strong>{{ user.username }}</strong>
         ({{ user.role|replace('_', ' ')|upper }})
+        {% if user.role == 'admin' %}
+            • <span style="color:#dc3545;">Full System Access</span>
+        {% elif user.role == 'manager' %}
+            • <span style="color:#0d6efd;">Approval & Management Access</span>
+        {% elif user.role == 'loan_officer' %}
+            • <span style="color:#198754;">View & Process Access</span>
+        {% endif %}
     </span>
 </div>
 
