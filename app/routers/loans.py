@@ -35,7 +35,8 @@ def list_loans(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    loans = db.query(Loan).all()
+    # Only show loans from customers who are NOT deleted
+    loans = db.query(Loan).join(Customer).filter(Customer.deleted_at.is_(None)).all()
     return templates.TemplateResponse("loans/list.html", {
         "request": request,
         "loans": loans,
@@ -305,7 +306,7 @@ def review_loan(
     }
     
     # Get loan counts for stats
-    total_loans = db.query(Loan).count()
+    total_loans = db.query(Loan).join(Customer).filter(Customer.deleted_at.is_(None)).count()
     customer_loan_count = db.query(Loan).filter(Loan.customer_id == customer.id).count()
     active_loan_count = db.query(Loan).filter(
         Loan.customer_id == customer.id,

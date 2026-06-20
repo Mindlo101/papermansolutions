@@ -19,33 +19,59 @@ def dashboard(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    # Basic stats - EXCLUDE deleted customers
+    # Only count active customers (not deleted)
     total_customers = db.query(Customer).filter(Customer.deleted_at.is_(None)).count()
-    total_loans = db.query(Loan).count()
     
-    # Count APPROVED, DISBURSED, and ACTIVE as "approved" loans
-    approved_loans = db.query(Loan).filter(
+    # Only count loans from active customers
+    total_loans = db.query(Loan).join(Customer).filter(Customer.deleted_at.is_(None)).count()
+    
+    # Count APPROVED, DISBURSED, and ACTIVE as "approved" loans - only from active customers
+    approved_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None),
         Loan.status.in_(["APPROVED", "DISBURSED", "ACTIVE"])
     ).count()
     
-    pending_loans = db.query(Loan).filter(Loan.status == "PENDING").count()
-    rejected_loans = db.query(Loan).filter(Loan.status == "REJECTED").count()
-    disbursed_loans = db.query(Loan).filter(Loan.status == "DISBURSED").count()
-    completed_loans = db.query(Loan).filter(Loan.status == "COMPLETED").count()
-    defaulted_loans = db.query(Loan).filter(Loan.status == "DEFAULTED").count()
+    pending_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None),
+        Loan.status == "PENDING"
+    ).count()
+    
+    rejected_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None),
+        Loan.status == "REJECTED"
+    ).count()
+    
+    disbursed_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None),
+        Loan.status == "DISBURSED"
+    ).count()
+    
+    completed_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None),
+        Loan.status == "COMPLETED"
+    ).count()
+    
+    defaulted_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None),
+        Loan.status == "DEFAULTED"
+    ).count()
 
-    # Get all active customers (not deleted) - EXCLUDE deleted
+    # Get all active customers (not deleted)
     customers = db.query(Customer).filter(Customer.deleted_at.is_(None)).all()
     
-    # Get all loans
-    loans = db.query(Loan).all()
+    # Get all loans from active customers
+    loans = db.query(Loan).join(Customer).filter(Customer.deleted_at.is_(None)).all()
 
-    # Calculate total portfolio value
-    total_portfolio = db.query(Loan).with_entities(Loan.amount).all()
+    # Calculate total portfolio value (only from active customers)
+    total_portfolio = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None)
+    ).with_entities(Loan.amount).all()
     total_portfolio_value = sum([loan.amount for loan in total_portfolio]) if total_portfolio else 0
 
-    # Recent loans (last 5)
-    recent_loans = db.query(Loan).order_by(Loan.id.desc()).limit(5).all()
+    # Recent loans (last 5) from active customers
+    recent_loans = db.query(Loan).join(Customer).filter(
+        Customer.deleted_at.is_(None)
+    ).order_by(Loan.id.desc()).limit(5).all()
 
     # ============================================
     # FRAUD STATS
