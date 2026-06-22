@@ -67,47 +67,6 @@ async def root():
 
 # Startup event - create default admin user if none exists
 @app.on_event("startup")
-def create_default_user():
-    from .database import SessionLocal
-    from .models.user import User
-
-    db = SessionLocal()
-
-    try:
-        admin = (
-            db.query(User)
-            .filter(User.username == "admin")
-            .first()
-        )
-
-        if not admin:
-            hashed_password = pwd_context.hash("admin123")
-
-            admin_user = User(
-                username="admin",
-                hashed_password=hashed_password,
-                full_name="System Admin",
-                role="admin",
-                is_active=True
-            )
-
-            db.add(admin_user)
-            db.commit()
-
-            print("=" * 50)
-            print("✅ Default admin created successfully!")
-            print("📋 Username: admin")
-            print("🔑 Password: admin123")
-            print("=" * 50)
-        else:
-            print("✅ Admin user already exists")
-
-    except Exception as e:
-        print(f"❌ Startup error: {e}")
-
-    finally:
-        db.close()
-        @app.on_event("startup")
 def startup_event():
     from .database import engine, Base
     from .models import Customer, Loan, Payment, User, AuditLog, Document, Blacklist, FraudAlert
@@ -115,7 +74,6 @@ def startup_event():
     Base.metadata.create_all(bind=engine)
     print("✅ Tables created")
     
-    # Create admin user if not exists
     from .models.user import User
     from .database import SessionLocal
     from passlib.context import CryptContext
@@ -124,17 +82,24 @@ def startup_event():
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
             pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+            hashed_password = pwd_context.hash("admin123")
             admin_user = User(
                 username="admin",
-                hashed_password=pwd_context.hash("admin123"),
+                hashed_password=hashed_password,
                 full_name="System Admin",
                 role="admin",
                 is_active=True
             )
             db.add(admin_user)
             db.commit()
-            print("✅ Admin created")
+            print("=" * 50)
+            print("✅ Default admin created successfully!")
+            print("📋 Username: admin")
+            print("🔑 Password: admin123")
+            print("=" * 50)
+        else:
+            print("✅ Admin user already exists")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Startup error: {e}")
     finally:
         db.close()
