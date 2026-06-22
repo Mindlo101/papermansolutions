@@ -107,3 +107,34 @@ def create_default_user():
 
     finally:
         db.close()
+        @app.on_event("startup")
+def startup_event():
+    from .database import engine, Base
+    from .models import Customer, Loan, Payment, User, AuditLog, Document, Blacklist, FraudAlert
+    print("🔄 Creating tables...")
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tables created")
+    
+    # Create admin user if not exists
+    from .models.user import User
+    from .database import SessionLocal
+    from passlib.context import CryptContext
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+            admin_user = User(
+                username="admin",
+                hashed_password=pwd_context.hash("admin123"),
+                full_name="System Admin",
+                role="admin",
+                is_active=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("✅ Admin created")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+    finally:
+        db.close()

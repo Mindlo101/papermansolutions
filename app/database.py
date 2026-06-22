@@ -3,10 +3,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-# Use the DATABASE_URL from environment variables
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./papermansolutions.db")
 
-# For PostgreSQL, we don't need the check_same_thread
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
