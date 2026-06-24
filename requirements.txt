@@ -8,5 +8,4 @@ python-dotenv==1.0.1
 reportlab==4.2.2
 aiofiles==24.1.0
 itsdangerous==2.2.0
-psycopg2-binary==2.9.9
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
